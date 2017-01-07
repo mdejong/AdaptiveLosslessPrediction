@@ -5303,45 +5303,16 @@ void CTI_MinimumSearch(
       continue;
     }
 
-    // No need to run pixel delta calculation logic for upper left 4 pixels
-    // or for pixels in the first row or the first column. These pixels
-    // can only be calculated once since they only depend on the previous
-    // value in the row or column.
+    // The top left corner pixels should never be recalculated
     
-    bool doNotRecalculate = false;
-    
+#if defined(DEBUG)
     if (toX < 2 && toY < 2) {
-      doNotRecalculate = true;
-#if defined(USE_BOX_DELTA)
-      // Recalculate rows 0 and 1
-#else
-    } else if (toY == 0 && isHorizontal) {
-      // First row
-      doNotRecalculate = true;
-#if defined(DEBUG)
-      results["noRecalcFirstRow"] += 1;
-#endif // DEBUG
-    } else if (toX == 0 && !isHorizontal) {
-      // First col
-      doNotRecalculate = true;
-#if defined(DEBUG)
-      results["noRecalcFirstCol"] += 1;
-#endif // DEBUG
-#endif // USE_BOX_DELTA
+      // The upper left init set of 4 should never be recalculated
+      assert(0);
     }
-    
-    if (doNotRecalculate) {
-      // Use as is
-    } else {
-      // Recalculate delta to determine if it has changed
-      
-#if defined(DEBUG)
-      if (toX < 2 && toY < 2) {
-        // The upper left init set of 4 should never be recalculated
-        assert(0);
-      }
 #endif // DEBUG
-      
+    
+    {
       int oDelta = minErr;
       
       int nDelta;

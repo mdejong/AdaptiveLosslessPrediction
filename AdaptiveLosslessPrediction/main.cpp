@@ -129,7 +129,7 @@ process_file(PngContext *cxt)
   
   vector<uint32_t> iterOrder;
   
-  const int numIterationLoops = 10;
+  const int numIterationLoops = 1;
   
   if (enable256 && numUniquePixels <= 256) {
     // 1 component colortable index processing
@@ -156,7 +156,7 @@ process_file(PngContext *cxt)
     // Note that generating deltas can have a significant impact on performance
     // since each pixel has to determine a predicted delta pixel.
     
-    const bool genDeltas = false;
+    const bool genDeltas = true;
     
     if (genDeltas) {
       deltasPtr = new uint32_t[inputImageNumPixels]();
@@ -304,8 +304,10 @@ process_file(PngContext *cxt)
   if ((0)) {
     int iterStepPtr = 0;
     
+    const int stepSize = 3000;
+    
     for ( int i = 0 ; i < inputImageNumPixels; i++ ) {
-      if ((i % 1000) == 0) {
+      if ((i % stepSize) == 0 || (i == (inputImageNumPixels-2))) {
         dump_iter_n(cxt->width, cxt->height, cxt->hasAlpha, cxt->pixels, iterOrder, &iterStepPtr);
       } else {
         iterStepPtr += 1;
@@ -353,7 +355,7 @@ process_file(PngContext *cxt)
   {
     uint32_t * deltasPtr = nullptr;
     
-    const bool genDeltas = false;
+    const bool genDeltas = true;
     
     if (genDeltas) {
       deltasPtr = new uint32_t[inputImageNumPixels]();

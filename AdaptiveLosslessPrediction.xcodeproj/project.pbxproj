@@ -150,14 +150,14 @@
 				3C6917BD1E205F1900E2F9C2 /* libpng */,
 				3C6917D71E205F1900E2F9C2 /* zlib */,
 				3C6917B61E205D7E00E2F9C2 /* main.cpp */,
-				3C6918161E205F2C00E2F9C2 /* PngContext.h */,
-				3C6918111E205F2C00E2F9C2 /* BitFlags2D.hpp */,
-				3C6918121E205F2C00E2F9C2 /* Cache2D.hpp */,
-				3C6918131E205F2C00E2F9C2 /* CalcError.h */,
 				3C6918141E205F2C00E2F9C2 /* ColortableIter.hpp */,
-				3C6918151E205F2C00E2F9C2 /* EncDec.hpp */,
-				3C6918171E205F2D00E2F9C2 /* PredFuncs.hpp */,
+				3C6918161E205F2C00E2F9C2 /* PngContext.h */,
 				3C6918181E205F2D00E2F9C2 /* StaticPrioStack.hpp */,
+				3C6918121E205F2C00E2F9C2 /* Cache2D.hpp */,
+				3C6918171E205F2D00E2F9C2 /* PredFuncs.hpp */,
+				3C6918151E205F2C00E2F9C2 /* EncDec.hpp */,
+				3C6918131E205F2C00E2F9C2 /* CalcError.h */,
+				3C6918111E205F2C00E2F9C2 /* BitFlags2D.hpp */,
 			);
 			path = AdaptiveLosslessPrediction;
 			sourceTree = "<group>";

@@ -39,6 +39,10 @@
 		3C69180E1E205F1900E2F9C2 /* trees.c in Sources */ = {isa = PBXBuildFile; fileRef = 3C6917EB1E205F1900E2F9C2 /* trees.c */; };
 		3C69180F1E205F1900E2F9C2 /* uncompr.c in Sources */ = {isa = PBXBuildFile; fileRef = 3C6917ED1E205F1900E2F9C2 /* uncompr.c */; };
 		3C6918101E205F1900E2F9C2 /* zutil.c in Sources */ = {isa = PBXBuildFile; fileRef = 3C6917F01E205F1900E2F9C2 /* zutil.c */; };
+		3C6918291E22FA6400E2F9C2 /* BitFlags2DTest.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3C6918251E22FA6400E2F9C2 /* BitFlags2DTest.mm */; };
+		3C69182A1E22FA6400E2F9C2 /* Cache2DTest.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3C6918261E22FA6400E2F9C2 /* Cache2DTest.mm */; };
+		3C69182B1E22FA6400E2F9C2 /* ColortableIterTest.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3C6918271E22FA6400E2F9C2 /* ColortableIterTest.mm */; };
+		3C69182C1E22FA6400E2F9C2 /* PredTest.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3C6918281E22FA6400E2F9C2 /* PredTest.mm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -115,10 +119,23 @@
 		3C6918161E205F2C00E2F9C2 /* PngContext.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PngContext.h; sourceTree = SOURCE_ROOT; };
 		3C6918171E205F2D00E2F9C2 /* PredFuncs.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = PredFuncs.hpp; sourceTree = SOURCE_ROOT; };
 		3C6918181E205F2D00E2F9C2 /* StaticPrioStack.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = StaticPrioStack.hpp; sourceTree = SOURCE_ROOT; };
+		3C69181D1E22F95300E2F9C2 /* Test.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Test.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		3C6918211E22F95300E2F9C2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		3C6918251E22FA6400E2F9C2 /* BitFlags2DTest.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = BitFlags2DTest.mm; sourceTree = "<group>"; };
+		3C6918261E22FA6400E2F9C2 /* Cache2DTest.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = Cache2DTest.mm; sourceTree = "<group>"; };
+		3C6918271E22FA6400E2F9C2 /* ColortableIterTest.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = ColortableIterTest.mm; sourceTree = "<group>"; };
+		3C6918281E22FA6400E2F9C2 /* PredTest.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = PredTest.mm; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		3C6917B01E205D7E00E2F9C2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3C69181A1E22F95300E2F9C2 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -132,6 +149,7 @@
 			isa = PBXGroup;
 			children = (
 				3C6917B51E205D7E00E2F9C2 /* AdaptiveLosslessPrediction */,
+				3C69181E1E22F95300E2F9C2 /* Test */,
 				3C6917B41E205D7E00E2F9C2 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -140,6 +158,7 @@
 			isa = PBXGroup;
 			children = (
 				3C6917B31E205D7E00E2F9C2 /* AdaptiveLosslessPrediction */,
+				3C69181D1E22F95300E2F9C2 /* Test.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -227,6 +246,18 @@
 			path = zlib;
 			sourceTree = SOURCE_ROOT;
 		};
+		3C69181E1E22F95300E2F9C2 /* Test */ = {
+			isa = PBXGroup;
+			children = (
+				3C6918251E22FA6400E2F9C2 /* BitFlags2DTest.mm */,
+				3C6918261E22FA6400E2F9C2 /* Cache2DTest.mm */,
+				3C6918271E22FA6400E2F9C2 /* ColortableIterTest.mm */,
+				3C6918281E22FA6400E2F9C2 /* PredTest.mm */,
+				3C6918211E22F95300E2F9C2 /* Info.plist */,
+			);
+			path = Test;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -247,6 +278,23 @@
 			productReference = 3C6917B31E205D7E00E2F9C2 /* AdaptiveLosslessPrediction */;
 			productType = "com.apple.product-type.tool";
 		};
+		3C69181C1E22F95300E2F9C2 /* Test */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3C6918241E22F95300E2F9C2 /* Build configuration list for PBXNativeTarget "Test" */;
+			buildPhases = (
+				3C6918191E22F95300E2F9C2 /* Sources */,
+				3C69181A1E22F95300E2F9C2 /* Frameworks */,
+				3C69181B1E22F95300E2F9C2 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Test;
+			productName = Test;
+			productReference = 3C69181D1E22F95300E2F9C2 /* Test.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -257,6 +305,11 @@
 				ORGANIZATIONNAME = HelpURock;
 				TargetAttributes = {
 					3C6917B21E205D7E00E2F9C2 = {
+						CreatedOnToolsVersion = 8.1;
+						DevelopmentTeam = 9F74CLHA49;
+						ProvisioningStyle = Automatic;
+					};
+					3C69181C1E22F95300E2F9C2 = {
 						CreatedOnToolsVersion = 8.1;
 						DevelopmentTeam = 9F74CLHA49;
 						ProvisioningStyle = Automatic;
@@ -276,9 +329,20 @@
 			projectRoot = "";
 			targets = (
 				3C6917B21E205D7E00E2F9C2 /* AdaptiveLosslessPrediction */,
+				3C69181C1E22F95300E2F9C2 /* Test */,
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		3C69181B1E22F95300E2F9C2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		3C6917AF1E205D7E00E2F9C2 /* Sources */ = {
@@ -317,6 +381,17 @@
 				3C6917F41E205F1900E2F9C2 /* pngget.c in Sources */,
 				3C6917F21E205F1900E2F9C2 /* png.c in Sources */,
 				3C6918091E205F1900E2F9C2 /* gzwrite.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3C6918191E22F95300E2F9C2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3C69182B1E22FA6400E2F9C2 /* ColortableIterTest.mm in Sources */,
+				3C69182A1E22FA6400E2F9C2 /* Cache2DTest.mm in Sources */,
+				3C69182C1E22FA6400E2F9C2 /* PredTest.mm in Sources */,
+				3C6918291E22FA6400E2F9C2 /* BitFlags2DTest.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -426,6 +501,30 @@
 			};
 			name = Release;
 		};
+		3C6918221E22F95300E2F9C2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 9F74CLHA49;
+				INFOPLIST_FILE = Test/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.helpurock.Test;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		3C6918231E22F95300E2F9C2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 9F74CLHA49;
+				INFOPLIST_FILE = Test/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.helpurock.Test;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -446,6 +545,14 @@
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
+		};
+		3C6918241E22F95300E2F9C2 /* Build configuration list for PBXNativeTarget "Test" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3C6918221E22F95300E2F9C2 /* Debug */,
+				3C6918231E22F95300E2F9C2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
 		};
 /* End XCConfigurationList section */
 	};

@@ -5306,7 +5306,7 @@ void CTI_MinimumSearch(
     // The top left corner pixels should never be recalculated
     
 #if defined(DEBUG)
-    if (toX < 2 && toY < 2) {
+    if (predX < 2 && predY < 2) {
       // The upper left init set of 4 should never be recalculated
       assert(0);
     }

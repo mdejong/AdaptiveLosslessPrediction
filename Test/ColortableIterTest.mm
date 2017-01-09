@@ -1810,7 +1810,6 @@ void CTI_IteratePixelsInTable(
   // 1  1  0  1
   // 1  1  0  1
   
-#if defined(USE_BOX_DELTA)
   // Clear processed flag for 5 at the start
   ctiStruct.processedFlags[5] = 0;
   
@@ -1860,27 +1859,6 @@ void CTI_IteratePixelsInTable(
   // Skip 14
   ctiStruct.processedFlags[15] = 1;
   ctiStruct.updateCache(tablePred, 3, 3);
-#else
-  // Mark all as processed
-  
-  {
-    for ( auto it = begin(ctiStruct.processedFlags); it != end(ctiStruct.processedFlags); it++ ) {
-      *it = 1;
-    }
-  }
-  
-  // Mark (1, 1) as not processed
-  
-  ctiStruct.processedFlags[5] = 0;
-  
-  // Mark (2, 2) as not processed
-  
-  ctiStruct.processedFlags[10] = 0;
-  
-  // Mark (2, 3) as not processed
-  
-  ctiStruct.processedFlags[14] = 0;
-#endif // USE_BOX_DELTA
   
   ctiStruct.clearWaitList();
   

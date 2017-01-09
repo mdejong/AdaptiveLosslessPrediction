@@ -139,8 +139,6 @@ void CTI_IteratePixelsInTable(
     [super tearDown];
 }
 
-#if defined(USE_BOX_DELTA)
-
 // A 4x4 matrix of RGB values
 
 - (void) test4x4CachedPredictionValues1 {
@@ -574,8 +572,6 @@ void CTI_IteratePixelsInTable(
   
   return;
 }
-
-#endif // USE_BOX_DELTA
 
 // Fast divide by 3 in range of 2^10 = 1024
 

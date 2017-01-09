@@ -18,7 +18,6 @@
 
 #include <unordered_map>
 
-#define USE_BOX_DELTA
 //#define BOX_DELTA_SUM_WITH_CACHE
 
 #if defined(DEBUG)
@@ -150,7 +149,6 @@ public:
   
   StaticPrioStack<CoordDelta> waitList;
 
-#if defined(USE_BOX_DELTA)
   // Cached H and V delta calculations, these need only
   // be executed once and then they can be reused by
   // multiple pixels.
@@ -167,7 +165,6 @@ public:
   Cache2DSum3<int16_t, true> cachedHDeltaRows;
   Cache2DSum3<int16_t, false> cachedVDeltaRows;
 # endif // BOX_DELTA_SUM_WITH_CACHE
-#endif // USE_BOX_DELTA
 
   // grid of true or false state for each pixel
   
@@ -404,8 +401,6 @@ public:
     
     return deltaPixel;
   }
-  
-#if defined(USE_BOX_DELTA)
 
   // Update cached delta values, this method is invoked after a pixel has been processed
   
@@ -634,7 +629,6 @@ public:
     }
   }
 #endif // BOX_DELTA_SUM_WITH_CACHE
-#endif // USE_BOX_DELTA
 };
 
 // Given the from and to coordinates, determine the prediction delta value
@@ -684,550 +678,6 @@ int CTI_PredictDelta3(
   
   return delta;
 }
-
-// Arrow Prediction (Horizontal)
-//  x - -
-//  - > x
-//  x - -
-//
-// UL U UR
-//  L C  R
-// DL D DR
-//
-//  x U UR
-//  L C  x
-//  x D DR
-//
-// U  = (0,-1)
-// UR = (+1,-1)
-// L  = (-1,0)
-// C  = (0,0)
-// D  = (0,+1)
-// DR = (+1,+1)
-//
-// Arrow Prediction (Vertical)
-//  x || x
-//  | \/ |
-//  | x  |
-//
-//  x L  x
-//  D C  U
-// DR x UR
-//
-
-// U  = (+1, 0)
-// UR = (+1, +1)
-// L  = (0, -1)
-// C  = (0,  0)
-// D  = (-1, 0)
-// DR = (-1, +1)
-
-// FIXME: could this logic hold on to a bit pattern that would know
-// which bits were defined the last time a recalc was done? That way
-// a new reclac would only be done when more neighbors have been defined?
-
-template <const bool isHorizontal>
-static inline
-int CTI_PredictDeltaArrow(
-                          CTI_Struct & ctiStruct,
-                          const bool tablePred,
-                          int fromOffset,
-                          int toOffset,
-                          int centerX,
-                          int centerY)
-{
-  const bool debug = false;
-  
-  if (debug) {
-    printf("CTI_PredictDeltaArrow(%d,%d) : isHorizontal %d\n", centerX, centerY, isHorizontal);
-  }
-  
-  // FIXME: rename later
-  const int regionWidth = ctiStruct.width;
-  const int regionHeight = ctiStruct.height;
-  
-#if defined(DEBUG)
-  if (isHorizontal) {
-    // Must be horizontal delta
-    assert((fromOffset + 1) == toOffset);
-  } else {
-    // Must be vertical delta
-    assert((fromOffset + regionWidth) == toOffset);
-  }
-#endif // DEBUG
-  
-  // Horizontal L  = (-1,0)
-  // Vertical   L  = (0,-1)
-  
-  const int xL = isHorizontal ? (centerX - 1) : (centerX + 0);
-  const int yL = isHorizontal ? (centerY + 0) : (centerY - 1);
-  
-  // Horizontal U = (0,-1)
-  // Vertical   U = (+1,0)
-
-  const int xU = isHorizontal ? (centerX + 0) : (centerX + 1);
-  const int yU = isHorizontal ? (centerY - 1) : (centerY + 0);
-  
-  // Horizontal UR = (+1,-1)
-  // Vertical   UR = (+1, +1)
-
-  const int xUR = isHorizontal ? (centerX + 1) : (centerX + 1);
-  const int yUR = isHorizontal ? (centerY - 1) : (centerY + 1);
-
-  // Horizontal D = (0,+1)
-  // Vertical   D = (-1,0)
-
-  const int xD = isHorizontal ? (centerX + 0) : (centerX - 1);
-  const int yD = isHorizontal ? (centerY + 1) : (centerY + 0);
-
-  // Horizontal DR = (+1,+1)
-  // Vertical   DR = (-1,+1)
-
-  const int xDR = isHorizontal ? (centerX + 1) : (centerX - 1);
-  const int yDR = isHorizontal ? (centerY + 1) : (centerY + 1);
-  
-#if defined(DEBUG)
-  // The L and C coordinates must be defined
-  
-  {
-    bool pixelWasProcessed = ctiStruct.wasProcessed(centerX, centerY);
-    assert(pixelWasProcessed);
-  }
-  
-  {
-    bool pixelWasProcessed = ctiStruct.wasProcessed(xL, yL);
-    assert(pixelWasProcessed);
-  }
-#endif // DEBUG
-  
-  if (debug) {
-    printf("U  (%d,%d) %d\n", xU, yU, CTIOffset2d(xU, yU, regionWidth));
-    printf("UR (%d,%d) %d\n", xUR, yUR, CTIOffset2d(xUR, yUR, regionWidth));
-    printf("L  (%d,%d) %d\n", xL, yL, fromOffset);
-    printf("C  (%d,%d) %d\n", centerX, centerY, toOffset);
-    printf("D  (%d,%d) %d\n", xD, yD, CTIOffset2d(xD, yD, regionWidth));
-    printf("DR (%d,%d) %d\n", xDR, yDR, CTIOffset2d(xDR, yDR, regionWidth));
-  }
-  
-  // Test to see if pixels above and below are defined
-  
-  bool upWasProcessed = false;
-  
-  // Horizontal U = (0,-1)
-  // Vertical   U = (+1,0)
-  
-  if ((isHorizontal && (yU >= 0)) ||
-      (!isHorizontal && (xU < regionWidth))) {
-    upWasProcessed = ctiStruct.wasProcessed(xU, yU);
-  }
-  
-  bool upRWasProcessed = false;
-  
-  // Horizontal UR = (+1,-1)
-  // Vertical   UR = (+1, +1)
-  
-  if ((isHorizontal && (yUR >= 0 && xUR < regionWidth)) ||
-      (!isHorizontal && (yUR < regionHeight && xUR < regionWidth))) {
-    upRWasProcessed = ctiStruct.wasProcessed(xUR, yUR);
-  }
-  
-  bool downWasProcessed = false;
-  
-  // Horizontal D = (0,+1)
-  // Vertical   D = (-1,0)
-  
-  if ((isHorizontal && (yD < regionHeight)) ||
-      (!isHorizontal && (xD >= 0))) {
-    downWasProcessed = ctiStruct.wasProcessed(xD, yD);
-  }
-  
-  bool downRWasProcessed = false;
-  
-  // Horizontal DR = (+1,+1)
-  // Vertical   DR = (-1,+1)
-  
-  if ((isHorizontal && (xDR < regionWidth && yDR < regionHeight)) ||
-      (!isHorizontal && (xDR >= 0 && yDR < regionHeight))) {
-    downRWasProcessed = ctiStruct.wasProcessed(xDR, yDR);
-  }
-
-  // Logic that depends on which pixels are defined at this point
-
-  bool sameUD = false;
-  bool sameURDR = false;
-  
-  // If U is not defined but D is, then use the value for D
-  // instead of U (mirror). Otherwise use C.
-
-  int downOffset = -1;
-  
-  if (downWasProcessed) {
-    downOffset = CTIOffset2d(xD, yD, regionWidth);
-  }
-  
-  int upOffset;
-  
-  if (upWasProcessed) {
-    upOffset = CTIOffset2d(xU, yU, regionWidth);
-  } else {
-    // If U is not defined, but UU is, then use UU to deal with
-    // a prediction hole caused by a strong vertical edge.
-    
-    // Horizontal UU = (0,-2)
-    // Vertical   UU = (+2,0)
-    
-    const int xUU = isHorizontal ? (centerX + 0) : (centerX + 2);
-    const int yUU = isHorizontal ? (centerY - 2) : (centerY + 0);
-    
-    bool upUpWasProcessed = false;
-    
-    if ((isHorizontal && (yUU >= 0)) ||
-        (!isHorizontal && (xUU < regionWidth))) {
-      upUpWasProcessed = ctiStruct.wasProcessed(xUU, yUU);
-    }
-    
-    if (upUpWasProcessed) {
-      int upUpOffset = CTIOffset2d(xUU, yUU, regionWidth);
-      upOffset = upUpOffset;
-    } else if (downWasProcessed) {
-      upOffset = downOffset;
-      sameUD = true;
-    } else {
-      upOffset = toOffset;
-    }
-    
-    if (debug) {
-      printf("U not processed\n");
-    }
-  }
-  
-  // If UR is not defined at this point, then read UR from U.
-  // In the case that U was not defined, then UR defaults to C.
-  
-  int downROffset = -1;
-  
-  if (downRWasProcessed) {
-    downROffset = CTIOffset2d(xDR, yDR, regionWidth);
-  }
-  
-  int upROffset;
-  
-  if (upRWasProcessed) {
-    upROffset = CTIOffset2d(xUR, yUR, regionWidth);
-  } else {
-    if (downRWasProcessed) {
-      upROffset = downROffset;
-      sameURDR = true;
-    } else {
-      upROffset = upOffset;
-    }
-    
-    if (debug) {
-      printf("UR not processed\n");
-    }
-  }
-  
-  // If D is not defined at this point
-  
-  if (!downWasProcessed) {
-    // If D is not defined, but DD is, then use DD to deal with
-    // a prediction hole caused by a strong vertical edge.
-    
-    // Horizontal DD = (0,+2)
-    // Vertical   DD = (-2,0)
-    
-    const int xDD = isHorizontal ? (centerX + 0) : (centerX - 2);
-    const int yDD = isHorizontal ? (centerY + 2) : (centerY + 0);
-    
-    bool downDownWasProcessed = false;
-    
-    if ((isHorizontal && (yDD < regionHeight)) ||
-        (!isHorizontal && (xDD >= 0))) {
-      downDownWasProcessed = ctiStruct.wasProcessed(xDD, yDD);
-    }
-    
-    if (downDownWasProcessed) {
-      int downDownOffset = CTIOffset2d(xDD, yDD, regionWidth);
-      downOffset = downDownOffset;
-    } else {
-      // read D from U (mirror)
-      
-      downOffset = upOffset;
-      sameUD = true;
-    }
-    
-    if (debug) {
-      printf("D not processed\n");
-    }
-  }
-  
-  // If DR is not defined at this point, then read DR from UR. (mirror)
-  
-  if (!downRWasProcessed) {
-    downROffset = upROffset;
-    sameURDR = true;
-    
-    if (debug) {
-      printf("DR not processed\n");
-    }
-  }
-  
-  // Pixel access order U, UR, L, C, D, DR
-
-#if defined(DEBUG)
-  assert(upOffset >= 0);
-  assert(upROffset >= 0);
-  assert(fromOffset >= 0);
-  assert(toOffset >= 0);
-  assert(downOffset >= 0);
-  assert(downROffset >= 0);
-#endif
-
-  const uint32_t * const pixelsPtr = ctiStruct.pixelsPtr;
-  const uint8_t * const tableOffsetsPtr = ctiStruct.tableOffsetsPtr;
-  const uint32_t * const colortablePixelsPtr = ctiStruct.colortablePixelsPtr;
-  const int colortableNumPixels = ctiStruct.colortableNumPixels;
-  
-  if (debug) {
-    uint32_t upPixel;
-    uint32_t upRPixel;
-    uint32_t leftPixel;
-    uint32_t centerPixel;
-    uint32_t downPixel;
-    uint32_t downRPixel;
-    
-    if (tablePred) {
-      int upColortableIndex = tableOffsetsPtr[upOffset];
-      int upRColortableIndex = tableOffsetsPtr[upROffset];
-      int leftColortableIndex = tableOffsetsPtr[fromOffset];
-      int centerColortableIndex = tableOffsetsPtr[toOffset];
-      
-      upPixel = colortablePixelsPtr[upColortableIndex];
-      upRPixel = colortablePixelsPtr[upRColortableIndex];
-      leftPixel = colortablePixelsPtr[leftColortableIndex];
-      centerPixel = colortablePixelsPtr[centerColortableIndex];
-    } else {
-      upPixel = pixelsPtr[upOffset];
-      upRPixel = pixelsPtr[upROffset];
-      leftPixel = pixelsPtr[fromOffset];
-      centerPixel = pixelsPtr[toOffset];
-    }
-    
-    printf("U      0x%08X\n", upPixel);
-    printf("UR     0x%08X\n", upRPixel);
-    
-    printf("L      0x%08X\n", leftPixel);
-    printf("center 0x%08X\n", centerPixel);
-    
-    if (tablePred) {
-      int downColortableIndex = tableOffsetsPtr[downOffset];
-      int downRColortableIndex = tableOffsetsPtr[downROffset];
-      
-      downPixel = colortablePixelsPtr[downColortableIndex];
-      downRPixel = colortablePixelsPtr[downRColortableIndex];
-    } else {
-      downPixel = pixelsPtr[downOffset];
-      downRPixel = pixelsPtr[downROffset];
-    }
-    
-    printf("D      0x%08X\n", downPixel);
-    printf("DR     0x%08X\n", downRPixel);
-  }
-  
-  // Common
-
-  uint32_t centerPixelOrTableIndex;
-  
-  if (tablePred) {
-    centerPixelOrTableIndex = tableOffsetsPtr[toOffset];
-  } else {
-    centerPixelOrTableIndex = pixelsPtr[toOffset];
-  }
-  
-  // Delta L -> C
-  
-  unsigned int centerDeltaSum;
-  
-  if (tablePred) {
-    int leftColortableIndex = tableOffsetsPtr[fromOffset];
-    
-    int wrappedDelta = convertToWrappedTableDelta(leftColortableIndex, centerPixelOrTableIndex, colortableNumPixels);
-    centerDeltaSum = convertSignedZeroDeltaToUnsigned(wrappedDelta);
-  } else {
-    uint32_t leftPixel = pixelsPtr[fromOffset];
-    uint32_t centerDeltaPixel = pixel_component_delta(leftPixel, centerPixelOrTableIndex, 3);
-    
-    if (debug) {
-      printf("center delta        : 0x%08X\n", centerDeltaPixel);
-    }
-    
-    centerDeltaSum = sum_of_abs_components(centerDeltaPixel, 3);
-  }
-    
-  // Delta C -> U
-  
-  unsigned int centerUSum;
-  
-  if (tablePred) {
-    int upColortableIndex = tableOffsetsPtr[upOffset];
-    
-    int wrappedDelta = convertToWrappedTableDelta(centerPixelOrTableIndex, upColortableIndex, colortableNumPixels);
-    centerUSum = convertSignedZeroDeltaToUnsigned(wrappedDelta);
-  } else {
-    uint32_t upPixel = pixelsPtr[upOffset];
-    uint32_t centerUDeltaPixel = pixel_component_delta(centerPixelOrTableIndex, upPixel, 3);
-    
-    if (debug) {
-      printf("center -> U delta   : 0x%08X\n", centerUDeltaPixel);
-    }
-    
-    centerUSum = sum_of_abs_components(centerUDeltaPixel, 3);
-  }
-    
-  // Delta C -> UR
-
-  unsigned int centerURSum;
-  
-  if (tablePred) {
-    int upRColortableIndex = tableOffsetsPtr[upROffset];
-    
-    int wrappedDelta = convertToWrappedTableDelta(centerPixelOrTableIndex, upRColortableIndex, colortableNumPixels);
-    centerURSum = convertSignedZeroDeltaToUnsigned(wrappedDelta);
-  } else {
-    uint32_t upRPixel = pixelsPtr[upROffset];
-    uint32_t centerURDeltaPixel = pixel_component_delta(centerPixelOrTableIndex, upRPixel, 3);
-    
-    if (debug) {
-      printf("center -> UR delta  : 0x%08X\n", centerURDeltaPixel);
-    }
-    
-    centerURSum = sum_of_abs_components(centerURDeltaPixel, 3);
-    
-    if (debug) {
-      printf("center -> UR sum  : %d\n", centerURSum);
-    }
-  }
-    
-  // C -> D
-  
-  unsigned int centerDSum;
-  
-  if (sameUD) {
-    if (debug) {
-      printf("center -> D (dup of C -> U)\n");
-    }
-    
-    centerDSum = centerUSum;
-  } else {
-    if (tablePred) {
-      int downColortableIndex = tableOffsetsPtr[downOffset];
-      
-      int wrappedDelta = convertToWrappedTableDelta(centerPixelOrTableIndex, downColortableIndex, colortableNumPixels);
-      centerDSum = convertSignedZeroDeltaToUnsigned(wrappedDelta);
-    } else {
-      uint32_t downPixel = pixelsPtr[downOffset];
-      uint32_t centerDDeltaPixel = pixel_component_delta(centerPixelOrTableIndex, downPixel, 3);
-      
-      if (debug) {
-        printf("center -> D delta   : 0x%08X\n", centerDDeltaPixel);
-      }
-      
-      centerDSum = sum_of_abs_components(centerDDeltaPixel, 3);
-    }
-  }
-  
-  // C -> DR
-
-  unsigned int centerDRSum;
-  
-  if (sameURDR) {
-    if (debug) {
-      printf("center -> DR (dup of C -> UR)\n");
-    }
-    
-    centerDRSum = centerURSum;
-  } else {
-    if (tablePred) {
-      int downRColortableIndex = tableOffsetsPtr[downROffset];
-      
-      int wrappedDelta = convertToWrappedTableDelta(centerPixelOrTableIndex, downRColortableIndex, colortableNumPixels);
-      centerDRSum = convertSignedZeroDeltaToUnsigned(wrappedDelta);
-    } else {
-      uint32_t downRPixel = pixelsPtr[downROffset];
-      uint32_t centerDRDeltaPixel = pixel_component_delta(centerPixelOrTableIndex, downRPixel, 3);
-      
-      if (debug) {
-        printf("center -> DR delta  : 0x%08X\n", centerDRDeltaPixel);
-      }
-      
-      centerDRSum = sum_of_abs_components(centerDRDeltaPixel, 3);
-    }
-  }
-  
-  // Print the sum values in arrow pattern with the int values filled in
-  
-  if (debug) {
-    // x - -
-    // - > x
-    // x - -
-
-    if (isHorizontal) {
-      printf("____________\n");
-      printf("x %3d  %3d\n", centerUSum, centerURSum);
-      printf("- %3d    x\n", centerDeltaSum);
-      printf("x %3d  %3d\n", centerDSum, centerDRSum);
-      printf("____________\n");
-    } else {
-      printf("|    x    -    x |\n");
-      printf("| %4d %4d %4d |\n", centerDSum, centerDeltaSum, centerUSum);
-      printf("| %4d    x %4d |\n", centerDRSum, centerURSum);
-    }
-    
-    printf("U  sum : %d\n", centerUSum);
-    printf("UR sum : %d\n", centerURSum);
-    printf("C  sum : %d\n", centerDeltaSum);
-    printf("D  sum : %d\n", centerDSum);
-    printf("DR sum : %d\n", centerDRSum);
-  }
-  
-  // FIXME: might be better to use (2*6)/16 and then
-  // avoid the shift right average here.
-  
-  // Total weights 6/8 + 1/8 + 1/8 = 8/8
-
-  unsigned int upDownSum = (centerUSum + centerDSum);
-  unsigned int diagSum = (centerURSum + centerDRSum);
-  
-  if (debug) {
-    printf("UD   ave sum : %4d\n", upDownSum);
-    printf("URDR ave sum : %4d\n", diagSum);
-  }
-  
-  // FIXME: impl mult 6 and (mult 4 + mult 2) + ave(up, diag)
-  
-  const unsigned int centerDeltaWeight = 6; // 6 of 8
-  
-  unsigned int sum = (centerDeltaSum * centerDeltaWeight) + ((upDownSum + diagSum) >> 1);
-
-  if (debug) {
-    printf("unscaled sum    : %4d\n", sum);
-  }
-  
-  // Scale sum back own to original range
-  
-  sum >>= 3; // N / 8
-  
-  if (debug) {
-    printf("total sum    : %4d\n", sum);
-  }
-  
-  // FIXME: need way to return the number of neighbors seen, so that
-  // if put back into the tree, another recalc is not needed.
-  
-  return sum;
-}
-
-#if defined(USE_BOX_DELTA)
 
 // Predict a RGB value by looking only at the direct 4 neighbor pixels (N S E W)
 
@@ -4286,8 +3736,6 @@ unsigned int CTI_BoxDeltaPredictV(
   return result;
 }
 
-#endif // USE_BOX_DELTA
-
 // Find the minimum delta in the horizontal or vertical trees
 
 static inline
@@ -4420,48 +3868,22 @@ void CTI_MinimumSearch(
       
       if (isHorizontal) {
 #if defined(DEBUG)
-# if defined(USE_BOX_DELTA)
         results["recalcBoxPredictH"] += 1;
-# else
-        results["recalcArrow"] += 1;
-# endif
 #endif // DEBUG
 
-#if defined(USE_BOX_DELTA)
         nDelta = CTI_BoxDeltaPredictH(ctiStruct,
                                  tablePred,
                                  toX + 1,
                                  toY);
-#else
-        nDelta = CTI_PredictDeltaArrow<true>(ctiStruct,
-                                             tablePred,
-                                             fromOffset,
-                                             toOffset,
-                                             toX,
-                                             toY);
-#endif // USE_BOX_DELTA
       } else {
 #if defined(DEBUG)
-# if defined(USE_BOX_DELTA)
         results["recalcBoxPredictV"] += 1;
-# else
-        results["recalcArrow"] += 1;
-# endif
 #endif // DEBUG
         
-#if defined(USE_BOX_DELTA)
         nDelta = CTI_BoxDeltaPredictV(ctiStruct,
                                  tablePred,
                                  toX,
                                  toY + 1);
-#else
-        nDelta = CTI_PredictDeltaArrow<false>(ctiStruct,
-                                              tablePred,
-                                              fromOffset,
-                                              toOffset,
-                                              toX,
-                                              toY);
-#endif // USE_BOX_DELTA
       }
       
       if (debug) {
@@ -4756,7 +4178,6 @@ bool CTI_IterateStep(CTI_Struct & ctiStruct,
       // a delta pixel based on the prediction. This prevents a delta update from
       // accidently being included in the prediction.
       
-#if defined(USE_BOX_DELTA)
       ctiStruct.updateCache(tablePred, cacheCol, cacheRow);
       
 # if defined(BOX_DELTA_SUM_WITH_CACHE)
@@ -4769,7 +4190,6 @@ bool CTI_IterateStep(CTI_Struct & ctiStruct,
                                    cacheCol,
                                    cacheRow);
 # endif // BOX_DELTA_SUM_WITH_CACHE
-#endif // USE_BOX_DELTA
       
       // Add vertical prediction that extends from this newly processed pixel down
       
@@ -4855,38 +4275,12 @@ bool CTI_IterateStep(CTI_Struct & ctiStruct,
         int fromOffset = CTIOffset2d(cacheCol, fromY, regionWidth);
         int toOffset = CTIOffset2d(cacheCol, toY, regionWidth);
         
-#if defined(USE_BOX_DELTA)
         int predY = toY + 1;
         
         int delta = CTI_BoxDeltaPredictV(ctiStruct,
                                     tablePred,
                                     cacheCol,
                                     predY);
-#else
-        int otherCol = -1;
-        
-        if (cacheCol == 0) {
-          // Ignore other
-        } else {
-          // Other is (col - 1) for all other rows
-          otherCol = cacheCol - 1;
-        }
-        
-        // In the case where pixel otherOffset has not been set yet, ignore in delta calc
-        
-        int delta = CTI_PredictDelta3(ctiStruct.pixelsPtr,
-                                      ctiStruct.colortablePixelsPtr,
-                                      ctiStruct.colortableNumPixels,
-                                      ctiStruct.tableOffsetsPtr,
-                                      tablePred,
-                                      ctiStruct.width,
-                                      ctiStruct.height,
-                                      ctiStruct,
-                                      fromOffset,
-                                      toOffset,
-                                      otherCol,
-                                      toY);
-#endif // USE_BOX_DELTA
         
         bool isHorizontal = false;
         
@@ -4959,7 +4353,6 @@ bool CTI_IterateStep(CTI_Struct & ctiStruct,
         int fromOffset = CTIOffset2d(fromX, cacheRow, regionWidth);
         int toOffset = CTIOffset2d(toX, cacheRow, regionWidth);
         
-#if defined(USE_BOX_DELTA)
         int predX = toX + 1;
         
         // In the case where pixel otherOffset has not been set yet, ignore in delta calc
@@ -4968,31 +4361,6 @@ bool CTI_IterateStep(CTI_Struct & ctiStruct,
                                     tablePred,
                                     predX,
                                     cacheRow);
-#else
-        int otherRow = -1;
-        
-        if (cacheRow == 0) {
-          // Ignore other
-        } else {
-          // Other is (row - 1) for all other rows
-          otherRow = cacheRow - 1;
-        }
-        
-        // In the case where pixel otherOffset has not been set yet, ignore in delta calc
-        
-        int delta = CTI_PredictDelta3(ctiStruct.pixelsPtr,
-                                      ctiStruct.colortablePixelsPtr,
-                                      ctiStruct.colortableNumPixels,
-                                      ctiStruct.tableOffsetsPtr,
-                                      tablePred,
-                                      ctiStruct.width,
-                                      ctiStruct.height,
-                                      ctiStruct,
-                                      fromOffset,
-                                      toOffset,
-                                      toX,
-                                      otherRow);
-#endif // USE_BOX_DELTA
         
         bool isHorizontal = true;
         
@@ -5273,9 +4641,7 @@ void CTI_InitBlock(const uint32_t * const pixelsPtr,
     int x = pair.first;
     int y = pair.second;
   
-#if defined(USE_BOX_DELTA)
     ctiStruct.updateCache(tablePred, x, y);
-#endif // USE_BOX_DELTA
     
     int fromOffset = CTIOffset2d(x, y, ctiStruct.width);
     iterOrder.push_back(fromOffset);
@@ -5355,7 +4721,6 @@ void CTI_Setup(CTI_Struct & ctiStruct,
   // deltas. The delta at offset 0 corresponds to the
   // delta between 0 and 1.
   
-#if defined(USE_BOX_DELTA)
   ctiStruct.cachedHDeltaSums.allocValues(width, height, -1);
   ctiStruct.cachedVDeltaSums.allocValues(width, height, -1);
 
@@ -5364,7 +4729,6 @@ void CTI_Setup(CTI_Struct & ctiStruct,
   ctiStruct.cachedHDeltaRows.allocValues(width, height, -1);
   ctiStruct.cachedVDeltaRows.allocValues(width, height, -1);
 # endif // BOX_DELTA_SUM_WITH_CACHE
-#endif // USE_BOX_DELTA
   
   // Processed flags indicate when a pixel has been "covered"
   
@@ -5518,9 +4882,7 @@ void CTI_ProcessFlags(CTI_Struct & ctiStruct,
       if (flagsPtr[offset]) {
         assert(ctiStruct.processedFlags[offset] == 0);
         ctiStruct.processedFlags[offset] = 1;
-#if defined(USE_BOX_DELTA)
         ctiStruct.updateCache(tablePred, x, y);
-#endif // USE_BOX_DELTA
       } else {
         assert(ctiStruct.processedFlags[offset] == 0);
       }

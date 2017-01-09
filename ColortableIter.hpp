@@ -681,8 +681,8 @@ int CTI_PredictDelta3(
 
 // Predict a RGB value by looking only at the direct 4 neighbor pixels (N S E W)
 
-//static inline
-static __attribute__ ((noinline))
+static inline
+//static __attribute__ ((noinline))
 uint32_t CTI_NeighborPredict(
                          CTI_Struct & ctiStruct,
                          const bool tablePred,
@@ -946,8 +946,8 @@ uint32_t CTI_NeighborPredict(
 // Predict a RGB value by looking at the direct 4 neighbor pixels (N S E W)
 // and the pred errors for these pixels
 
-//static inline
-static __attribute__ ((noinline))
+static inline
+//static __attribute__ ((noinline))
 uint32_t CTI_NeighborPredict2(
                               CTI_Struct & ctiStruct,
                               const bool tablePred,
@@ -1643,8 +1643,8 @@ unsigned int CTI_WeightedSum(int sum0, int sum1, int sum2)
 // Given the (X1,Y1) and (X2,Y2) coordinates of a rectangular region,
 // sum the values in each row and return a weighted sum.
 
-//static inline
-static __attribute__ ((noinline))
+static inline
+//static __attribute__ ((noinline))
 unsigned int CTI_BoxDeltaSum(
                              const vector<int16_t> & deltaVec,
                              int numCols,
@@ -1883,8 +1883,8 @@ unsigned int CTI_BoxDeltaSum(
 // Predict in a horizontal 3x5 box around the unknown pixel
 // by reading from neighbors and generating a weighted average.
 
-//static inline
-static __attribute__ ((noinline))
+static inline
+//static __attribute__ ((noinline))
 unsigned int CTI_BoxDeltaPredictH(
                                   CTI_Struct & ctiStruct,
                                   const bool tablePred,
@@ -2382,8 +2382,8 @@ unsigned int CTI_BoxDeltaPredictH(
 // Predict in a horizontal 5x3 box around the unknown pixel
 // by reading from neighbors and generating a weighted average.
 
-//static inline
-static __attribute__ ((noinline))
+static inline
+//static __attribute__ ((noinline))
 unsigned int CTI_BoxDeltaPredictV(
                                   CTI_Struct & ctiStruct,
                                   const bool tablePred,
@@ -2985,8 +2985,8 @@ void CTI_MinimumSearch(
       
       int nDelta;
       
-      int fromOffset = CTIOffset2d(fromX, fromY, regionWidth);
-      int toOffset = CTIOffset2d(toX, toY, regionWidth);
+      //int fromOffset = CTIOffset2d(fromX, fromY, regionWidth);
+      //int toOffset = CTIOffset2d(toX, toY, regionWidth);
       
       int otherX;
       int otherY;

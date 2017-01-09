@@ -19,6 +19,7 @@
 #include <unordered_map>
 
 #define USE_BOX_DELTA
+//#define BOX_DELTA_SUM_WITH_CACHE
 
 #if defined(DEBUG)
 #include <iostream>
@@ -162,8 +163,10 @@ public:
   // use a single function to read cached values in
   // a memory optimal fasion.
   
+# if defined(BOX_DELTA_SUM_WITH_CACHE)
   Cache2DSum3<int16_t, true> cachedHDeltaRows;
   Cache2DSum3<int16_t, false> cachedVDeltaRows;
+# endif // BOX_DELTA_SUM_WITH_CACHE
 #endif // USE_BOX_DELTA
 
   // grid of true or false state for each pixel
@@ -586,6 +589,7 @@ public:
     return;
   }
 
+#if defined(BOX_DELTA_SUM_WITH_CACHE)
   // Invalidate either a H or V cache for the indicate pixel.
   // Note that in the case of a vertical cache the pixel coordinates
   // are transposed.
@@ -629,7 +633,7 @@ public:
       return cachedVDeltaRows.getCachedValue(cachedVDeltaSums, cacheCol, cacheRow);
     }
   }
-  
+#endif // BOX_DELTA_SUM_WITH_CACHE
 #endif // USE_BOX_DELTA
 };
 
@@ -3048,8 +3052,6 @@ unsigned int CTI_WeightedSum(int sum0, int sum1, int sum2)
 
 // Given the (X1,Y1) and (X2,Y2) coordinates of a rectangular region,
 // sum the values in each row and return a weighted sum.
-
-//#define BOX_DELTA_SUM_WITH_CACHE
 
 //static inline
 static __attribute__ ((noinline))
@@ -5800,18 +5802,9 @@ bool CTI_IterateStep(CTI_Struct & ctiStruct,
       // accidently being included in the prediction.
       
 #if defined(USE_BOX_DELTA)
-//      if (tablePred) {
-//        ctiStruct.updateCache(tablePred, cacheCol, cacheRow);
-//      } else {
-//        ctiStruct.updateRowCaches(tablePred, cacheCol, cacheRow);
-//      }
       ctiStruct.updateCache(tablePred, cacheCol, cacheRow);
-
-//      if (cacheCol == 6 && cacheRow == 9) {
-//        printf("target\n");
-//      }
       
-#if defined(BOX_DELTA_SUM_WITH_CACHE)
+# if defined(BOX_DELTA_SUM_WITH_CACHE)
       ctiStruct.invalidateRowCache(
                                    true,
                                    cacheCol,
@@ -5820,7 +5813,7 @@ bool CTI_IterateStep(CTI_Struct & ctiStruct,
                                    false,
                                    cacheCol,
                                    cacheRow);
-#endif // BOX_DELTA_SUM_WITH_CACHE
+# endif // BOX_DELTA_SUM_WITH_CACHE
 #endif // USE_BOX_DELTA
       
       // Add vertical prediction that extends from this newly processed pixel down
@@ -6433,8 +6426,6 @@ void CTI_InitBlock(const uint32_t * const pixelsPtr,
   vector<InitRCD> initOrder;
   initOrder.reserve(4);
   
-  // FIXME: reorder so that row 0 defaults to being processed before row 1
-  
   // Check each horizontal line
   
   for ( int y = 0; y < 2; y++ ) {
@@ -6700,96 +6691,6 @@ void CTI_Setup(CTI_Struct & ctiStruct,
   const int regionNumPixels = width * height;
   assert(regionNumPixels > 0);
   
-  //int fromOffset;
-  
-  // Direct pixel by pixel prediction
-  
-  /*
-  
-  vector<uint32_t> & regionPixels = ctiStruct.regionPixels;
-  
-  if (pixelsPtr) {
-    assert(tableOffsetsPtr == nullptr);
-    
-    if (regionPixels.size() == regionNumPixels) {
-      // Reuse case where region size has not changed
-    } else {
-      // Reuse case where region size has changed, or size was zero
-      regionPixels = vector<uint32_t>(regionNumPixels);
-    }
-    
-    const int maxX = originX + regionWidth;
-    const int maxY = originY + regionHeight;
-    int flati = 0;
-    
-    for ( int y = originY; y < maxY; y++ ) {
-      int regionRowOffset = (y * bufferWidth);
-      
-      for ( int x = originX; x < maxX; x++ ) {
-        int regionOffset = regionRowOffset + x;
-        regionPixels[flati++] = pixelsPtr[regionOffset];
-      }
-    }
-    
-#if defined(DEBUG)
-    assert(flati == regionNumPixels);
-#endif // DEBUG
-    
-    if (debugDumpCopiedOffsets) {
-      for ( int y = 0; y < regionHeight; y++ ) {
-        for ( int x = 0; x < regionWidth; x++ ) {
-          int offset = (y * regionWidth) + x;
-          printf("0x%08X ", regionPixels[offset]);
-        }
-        printf("\n");
-      }
-    }
-  }
-    
-  // Table prediciton
-  
-  vector<uint8_t> & regionTableOffsets = ctiStruct.regionTableOffsets;
-  
-  if (tableOffsetsPtr) {
-    assert(pixelsPtr == nullptr);
-    
-    if (regionTableOffsets.size() == regionNumPixels) {
-      // Reuse case where region size has not changed
-    } else {
-      // Reuse case where region size has changed, or size was zero
-      regionTableOffsets = vector<uint8_t>(regionNumPixels);
-    }
-    
-    const int maxX = originX + regionWidth;
-    const int maxY = originY + regionHeight;
-    int flati = 0;
-    
-    for ( int y = originY; y < maxY; y++ ) {
-      int regionRowOffset = (y * bufferWidth);
-      
-      for ( int x = originX; x < maxX; x++ ) {
-        int regionOffset = regionRowOffset + x;
-        regionTableOffsets[flati++] = tableOffsetsPtr[regionOffset];
-      }
-    }
-    
-#if defined(DEBUG)
-    assert(flati == regionNumPixels);
-#endif // DEBUG
-    
-    if (debugDumpCopiedOffsets) {
-      for ( int y = 0; y < regionHeight; y++ ) {
-        for ( int x = 0; x < regionWidth; x++ ) {
-          int offset = (y * regionWidth) + x;
-          printf("%d ", regionTableOffsets[offset]);
-        }
-        printf("\n");
-      }
-    }
-  }
-  
-  */
-  
   // Copy parameters
   
   ctiStruct.pixelsPtr = (uint32_t*) pixelsPtr;
@@ -6819,10 +6720,6 @@ void CTI_Setup(CTI_Struct & ctiStruct,
     ctiStruct.initWaitList(255+255+255+1);
   }
   
-  // FIXME: Phony init for 16 bit range for now
-  
-//  ctiStruct.initWaitList(0xFFFF);
-  
   // Init deltas so that for a width of N there are (N-1)
   // deltas. The delta at offset 0 corresponds to the
   // delta between 0 and 1.
@@ -6830,9 +6727,12 @@ void CTI_Setup(CTI_Struct & ctiStruct,
 #if defined(USE_BOX_DELTA)
   ctiStruct.cachedHDeltaSums.allocValues(width, height, -1);
   ctiStruct.cachedVDeltaSums.allocValues(width, height, -1);
-  
+
+# if defined(BOX_DELTA_SUM_WITH_CACHE)
+  // FIXME: Do not allocate this memory is L2 cache is not used
   ctiStruct.cachedHDeltaRows.allocValues(width, height, -1);
   ctiStruct.cachedVDeltaRows.allocValues(width, height, -1);
+# endif // BOX_DELTA_SUM_WITH_CACHE
 #endif // USE_BOX_DELTA
   
   // Processed flags indicate when a pixel has been "covered"
@@ -6966,7 +6866,7 @@ void CTI_Iterate(
 // of the original 4 pixels in the upper left corner will be touched
 // and that the normal init logic has been executed.
 
-static
+static inline
 void CTI_ProcessFlags(CTI_Struct & ctiStruct,
                       uint8_t *flagsPtr,
                       const bool tablePred)

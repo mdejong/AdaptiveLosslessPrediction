@@ -285,6 +285,20 @@ public:
     bool wasTargetPixelProcessed = (processedFlags[offset] != 0);
     return wasTargetPixelProcessed;
   }
+
+  // Optimal wasProcessed() call for the case where an offset has
+  // already been calculated for the (x, y) coords.
+  
+  bool wasProcessed(int offset)
+  {
+#if defined(DEBUG)
+    assert(offset >= 0);
+    assert(offset < width*height);
+    assert(offset < processedFlags.size());
+#endif // DEBUG
+    bool wasTargetPixelProcessed = (processedFlags[offset] != 0);
+    return wasTargetPixelProcessed;
+  }
   
   // Set processed flag for specific (X, Y) coordinate
   
@@ -296,7 +310,6 @@ public:
     assert(x < width);
     assert(y < height);
 #endif // DEBUG
-
     
     int offset = CTIOffset2d(x, y, width);
     processedFlags[offset] = 1;
@@ -430,7 +443,11 @@ public:
       int prevCol = cacheCol - 1;
       
       if (prevCol >= 0) {
-        int leftOffset = CTIOffset2d(prevCol, cacheRow, width);
+        //int leftOffset = CTIOffset2d(prevCol, cacheRow, width);
+        int leftOffset = centerOffset - 1;
+#if defined(DEBUG)
+        assert(leftOffset == CTIOffset2d(prevCol, cacheRow, width));
+#endif // DEBUG
 
 #if defined(DEBUG)
         cachedHDeltaSums.assertIfInvalidOffset(leftOffset);
@@ -448,7 +465,8 @@ public:
         
         auto & cachedDelta = cachedHDeltaSums.values[leftOffset];
         
-        bool pixelWasProcessed = wasProcessed(prevCol, cacheRow);
+        //bool pixelWasProcessed = wasProcessed(prevCol, cacheRow);
+        bool pixelWasProcessed = wasProcessed(leftOffset);
         if (pixelWasProcessed) {
           // Invoking CTI_PredictDelta3 w other=-1 returns an unscaled delta + abs sum
           
@@ -473,7 +491,11 @@ public:
       int nextCol = cacheCol + 1;
       
       if (nextCol < width) {
-        int rightOffset = CTIOffset2d(nextCol, cacheRow, width);
+//        int rightOffset = CTIOffset2d(nextCol, cacheRow, width);
+        int rightOffset = centerOffset + 1;
+#if defined(DEBUG)
+        assert(rightOffset == CTIOffset2d(nextCol, cacheRow, width));
+#endif // DEBUG
         
 #if defined(DEBUG)
         cachedHDeltaSums.assertIfInvalidOffset(centerOffset);
@@ -484,7 +506,8 @@ public:
         
         auto & cachedDelta = cachedHDeltaSums.values[centerOffset];
         
-        bool pixelWasProcessed = wasProcessed(nextCol, cacheRow);
+        //bool pixelWasProcessed = wasProcessed(nextCol, cacheRow);
+        bool pixelWasProcessed = wasProcessed(rightOffset);
         if (pixelWasProcessed) {
           // Invoking CTI_PredictDelta3 w other=-1 returns an unscaled delta + abs sum
           
@@ -503,15 +526,24 @@ public:
       }
     }
     
+    // Transposed offset calculation
+    int centerOffsetT = CTIOffset2d(cacheRow, cacheCol, height);
+    
     // U -> C is V cache for (0, -1) (transposed)
     
     {
       int prevRow = cacheRow - 1;
       
       if (prevRow >= 0) {
-        // Transposed offset calculation
-        int upOffset = CTIOffset2d(cacheCol, prevRow, width);
-        int upOffsetT = CTIOffset2d(prevRow, cacheCol, height);
+        int upOffset = centerOffset - width;
+#if defined(DEBUG)
+        assert(upOffset == CTIOffset2d(cacheCol, prevRow, width));
+#endif // DEBUG
+//        int upOffsetT = CTIOffset2d(prevRow, cacheCol, height);
+        int upOffsetT = centerOffsetT - 1;
+#if defined(DEBUG)
+        assert(upOffsetT == CTIOffset2d(prevRow, cacheCol, height));
+#endif // DEBUG
         
 #if defined(DEBUG)
         cachedHDeltaSums.assertIfInvalidOffset(upOffsetT);
@@ -520,7 +552,8 @@ public:
         
         auto & cachedDelta = cachedVDeltaSums.values[upOffsetT];
         
-        bool pixelWasProcessed = wasProcessed(cacheCol, prevRow);
+        //bool pixelWasProcessed = wasProcessed(cacheCol, prevRow);
+        bool pixelWasProcessed = wasProcessed(upOffset);
         if (pixelWasProcessed) {
           // Invoking CTI_PredictDelta3 w other=-1 returns an unscaled delta + abs sum
           
@@ -545,11 +578,17 @@ public:
       int nextRow = cacheRow + 1;
       
       if (nextRow < height) {
-        // Transposed offset calculation
-        int downOffset = CTIOffset2d(cacheCol, nextRow, width);
+        //int downOffset = CTIOffset2d(cacheCol, nextRow, width);
+        int downOffset = centerOffset + width;
+        
+#if defined(DEBUG)
+        assert(downOffset == CTIOffset2d(cacheCol, nextRow, width));
+#endif // DEBUG
+        
         //int downOffsetT = CTIOffset2d(nextRow, cacheCol, height);
 
-        int centerOffsetT = CTIOffset2d(cacheRow, cacheCol, height);
+        // Transposed offset calculation
+        //int centerOffsetT = CTIOffset2d(cacheRow, cacheCol, height);
         
 #if defined(DEBUG)
         cachedHDeltaSums.assertIfInvalidOffset(centerOffsetT);
@@ -558,7 +597,8 @@ public:
         
         auto & cachedDelta = cachedVDeltaSums.values[centerOffsetT];
         
-        bool pixelWasProcessed = wasProcessed(cacheCol, nextRow);
+        //bool pixelWasProcessed = wasProcessed(cacheCol, nextRow);
+        bool pixelWasProcessed = wasProcessed(downOffset);
         if (pixelWasProcessed) {
           // Invoking CTI_PredictDelta3 w other=-1 returns an unscaled delta + abs sum
           

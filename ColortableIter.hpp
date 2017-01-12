@@ -468,8 +468,6 @@ public:
         //bool pixelWasProcessed = wasProcessed(prevCol, cacheRow);
         bool pixelWasProcessed = wasProcessed(leftOffset);
         if (pixelWasProcessed) {
-          // Invoking CTI_PredictDelta3 w other=-1 returns an unscaled delta + abs sum
-          
           int delta = simpleDelta(tablePred, leftOffset, centerOffset);
           
 #if defined(DEBUG)
@@ -509,8 +507,6 @@ public:
         //bool pixelWasProcessed = wasProcessed(nextCol, cacheRow);
         bool pixelWasProcessed = wasProcessed(rightOffset);
         if (pixelWasProcessed) {
-          // Invoking CTI_PredictDelta3 w other=-1 returns an unscaled delta + abs sum
-          
           int delta = simpleDelta(tablePred, centerOffset, rightOffset);
           
 #if defined(DEBUG)
@@ -555,8 +551,6 @@ public:
         //bool pixelWasProcessed = wasProcessed(cacheCol, prevRow);
         bool pixelWasProcessed = wasProcessed(upOffset);
         if (pixelWasProcessed) {
-          // Invoking CTI_PredictDelta3 w other=-1 returns an unscaled delta + abs sum
-          
           int delta = simpleDelta(tablePred, upOffset, centerOffset);
           
 #if defined(DEBUG)
@@ -600,8 +594,6 @@ public:
         //bool pixelWasProcessed = wasProcessed(cacheCol, nextRow);
         bool pixelWasProcessed = wasProcessed(downOffset);
         if (pixelWasProcessed) {
-          // Invoking CTI_PredictDelta3 w other=-1 returns an unscaled delta + abs sum
-          
           int delta = simpleDelta(tablePred, centerOffset, downOffset);
           
 #if defined(DEBUG)
@@ -670,54 +662,6 @@ public:
   }
 #endif // BOX_DELTA_SUM_WITH_CACHE
 };
-
-// Given the from and to coordinates, determine the prediction delta value
-// based on which neighbor pixels are currently defined
-
-static inline
-int CTI_PredictDelta3(
-                     const uint32_t * const pixelsPtr,
-                     const uint32_t * const colortablePixelsPtr,
-                     const int colortableNumPixels,
-                     const uint8_t * const tableOffsetsPtr,
-                     const bool tablePred,
-                     const int regionWidth,
-                     const int regionHeight,
-                      CTI_Struct & ctiStruct,
-                     int fromOffset,
-                     int toOffset,
-                     int otherX,
-                     int otherY)
-{
-  const bool debug = false;
-  
-  int otherOffset = -1;
-  
-  // Determine if other is set by looking at the horizontal
-  // and vertical counters that correspond to (x,y)
-  
-  if (otherX >= 0 && otherY >= 0) {
-    bool otherPixelWasProcessed = ctiStruct.wasProcessed(otherX, otherY);
-    
-    if (otherPixelWasProcessed) {
-      otherOffset = CTIOffset2d(otherX, otherY, regionWidth);
-    }
-  }
-  
-  int delta;
-  
-  if (debug) {
-    printf("CTI_PredictDelta3\n");
-  }
-  
-  if (tablePred) {
-    delta = CTITablePredict(tableOffsetsPtr, colortablePixelsPtr, fromOffset, toOffset, otherOffset, colortableNumPixels);
-  } else {
-    delta = CTIPredict(pixelsPtr, fromOffset, toOffset, otherOffset);
-  }
-  
-  return delta;
-}
 
 // Predict a RGB value by looking only at the direct 4 neighbor pixels (N S E W)
 
@@ -3536,7 +3480,7 @@ void CTI_InitBlock(const uint32_t * const pixelsPtr,
                    vector<uint32_t> & iterOrder,
                    uint32_t * const deltasPtr)
 {
-  const bool debug = false;
+  const bool debug = true;
   
   if (debug) {
     printf("CTI_InitBlock\n");
@@ -3602,38 +3546,11 @@ void CTI_InitBlock(const uint32_t * const pixelsPtr,
               printf("uncached horizontal line (%d,%d) -> (%d,%d) : (%d -> %d)\n", fromX, y, toX, y, fromOffset, toOffset);
             }
             
-#if defined(DEBUG)
-            int otherOffset;
-#endif // DEBUG
-            int otherRow;
+            delta = ctiStruct.simpleDelta(tablePred, fromOffset, toOffset);
             
-            if (y == 0) {
-              // Other is row=1 in the first row
-              otherRow = 1;
-#if defined(DEBUG)
-              if (otherRow < regionHeight) {
-                otherOffset = CTIOffset2d(toX, otherRow, regionWidth);
-              } else {
-                assert(0);
-              }
-#endif // DEBUG
-            } else {
-              // Other is (row - 1) for all other rows
-              otherRow = y-1;
+            if (debug) {
+              printf("delta (%d,%d) -> (%d,%d) : %d\n", fromX, y, toX, y, delta);
             }
-            
-            delta = CTI_PredictDelta3(pixelsPtr,
-                                     colortablePixelsPtr,
-                                     colortableNumPixels,
-                                     tableOffsetsPtr,
-                                     tablePred,
-                                     regionWidth,
-                                     regionHeight,
-                                      ctiStruct,
-                                     fromOffset,
-                                     toOffset,
-                                     toX,
-                                     otherRow);
             
             bool isHorizontal = true;
             
@@ -3711,18 +3628,11 @@ void CTI_InitBlock(const uint32_t * const pixelsPtr,
               otherOffset = CTIOffset2d(otherCol, toY, regionWidth);
             }
             
-            delta = CTI_PredictDelta3(pixelsPtr,
-                                     colortablePixelsPtr,
-                                     colortableNumPixels,
-                                     tableOffsetsPtr,
-                                     tablePred,
-                                     regionWidth,
-                                     regionHeight,
-                                      ctiStruct,
-                                     fromOffset,
-                                     toOffset,
-                                     otherCol,
-                                     toY);
+            delta = ctiStruct.simpleDelta(tablePred, fromOffset, toOffset);
+            
+            if (debug) {
+              printf("delta (%d,%d) -> (%d,%d) : %d\n", x, fromY, x, toY, delta);
+            }
             
             bool isHorizontal = false;
             
@@ -3788,6 +3698,8 @@ void CTI_InitBlock(const uint32_t * const pixelsPtr,
       // Emit upper 4 corner pixels directly without a delta
       deltasPtr[fromOffset] = pixelsPtr[fromOffset];
     } else if (deltasPtr && tablePred) {
+      // FIXME: in table pred mode, does this emit logic write table offsets?
+      
       // Emit upper 4 corner pixels directly without a delta
       deltasPtr[fromOffset] = colortablePixelsPtr[tableOffsetsPtr[fromOffset]];
     }

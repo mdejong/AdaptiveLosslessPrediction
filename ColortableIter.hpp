@@ -1506,7 +1506,149 @@ uint32_t CTI_NeighborPredict2(
   } else {
     // No H or V primary, calculate ave of H and V
     
-    return CTI_NeighborPredict(ctiStruct, tablePred, centerX, centerY);
+    int sumHR = 0, sumHG = 0, sumHB = 0;
+    int numH = 0;
+    int sumVR = 0, sumVG = 0, sumVB = 0;
+    int numV = 0;
+    
+    // U
+    
+    if (nBits.U) {
+      int offset = centerOffset - width;
+      
+      uint32_t pixel = ctiStruct.pixelLookup(tablePred, offset);
+      
+      uint32_t B = pixel & 0xFF;
+      uint32_t G = (pixel >> 8) & 0xFF;
+      uint32_t R = (pixel >> 16) & 0xFF;
+      
+      numV += 1;
+      
+      sumVB += B;
+      sumVG += G;
+      sumVR += R;
+    }
+    
+    // L
+    
+    if (nBits.L) {
+      int offset = centerOffset - 1;
+      uint32_t pixel = ctiStruct.pixelLookup(tablePred, offset);
+      
+      uint32_t B = pixel & 0xFF;
+      uint32_t G = (pixel >> 8) & 0xFF;
+      uint32_t R = (pixel >> 16) & 0xFF;
+      
+      numH += 1;
+      
+      sumHB += B;
+      sumHG += G;
+      sumHR += R;
+    }
+
+    // R
+    
+    if (nBits.R) {
+      int offset = centerOffset + 1;
+      
+      uint32_t pixel = ctiStruct.pixelLookup(tablePred, offset);
+      
+      uint32_t B = pixel & 0xFF;
+      uint32_t G = (pixel >> 8) & 0xFF;
+      uint32_t R = (pixel >> 16) & 0xFF;
+      
+      numH += 1;
+      
+      sumHB += B;
+      sumHG += G;
+      sumHR += R;
+    }
+
+    // D
+    
+    if (nBits.D) {
+      int offset = centerOffset + width;
+      
+      uint32_t pixel = ctiStruct.pixelLookup(tablePred, offset);
+      
+      uint32_t B = pixel & 0xFF;
+      uint32_t G = (pixel >> 8) & 0xFF;
+      uint32_t R = (pixel >> 16) & 0xFF;
+      
+      numV += 1;
+      
+      sumVB += B;
+      sumVG += G;
+      sumVR += R;
+    }
+    
+#if defined(DEBUG)
+    if (numH == 0 && numV == 0) {
+      assert(0);
+    }
+    assert(numH <= 2);
+    assert(numV <= 2);
+#endif // DEBUG
+    
+    // H is 0, 1, or 2 values
+    
+    if (numH == 0) {
+    } else if (numH == 1) {
+      // nop
+    } else if (numH == 2) {
+      // ave
+      sumHR = fast_div_2(sumHR);
+      sumHG = fast_div_2(sumHG);
+      sumHB = fast_div_2(sumHB);
+    }
+    
+    // V is 0, 1, or 2 values
+    
+    if (numV == 0) {
+    } else if (numV == 1) {
+      // nop
+    } else if (numV == 2) {
+      // ave
+      sumVR = fast_div_2(sumVR);
+      sumVG = fast_div_2(sumVG);
+      sumVB = fast_div_2(sumVB);
+    }
+    
+    uint32_t R, G, B;
+    
+    if (numH == 0) {
+      // Use just the V pred
+      R = sumVR;
+      G = sumVG;
+      B = sumVB;
+    } else if (numV == 0) {
+      // Use just the H pred
+      R = sumHR;
+      G = sumHG;
+      B = sumHB;
+    } else {
+      // Combine ave for H and V
+#if defined(DEBUG)
+      assert(sumHR != -1);
+      assert(sumVR != -1);
+      assert(sumHG != -1);
+      assert(sumVG != -1);
+      assert(sumHB != -1);
+      assert(sumVB != -1);
+#endif // DEBUG
+      
+      R = fast_ave_2(sumHR, sumVR);
+      G = fast_ave_2(sumHG, sumVG);
+      B = fast_ave_2(sumHB, sumVB);
+    }
+    
+#if defined(DEBUG)
+    assert(R <= 0xFF);
+    assert(G <= 0xFF);
+    assert(B <= 0xFF);
+#endif // DEBUG
+    
+    retPixel = (R << 16) | (G << 8) | B;
   }
   
   return retPixel;
@@ -3480,7 +3622,7 @@ void CTI_InitBlock(const uint32_t * const pixelsPtr,
                    vector<uint32_t> & iterOrder,
                    uint32_t * const deltasPtr)
 {
-  const bool debug = true;
+  const bool debug = false;
   
   if (debug) {
     printf("CTI_InitBlock\n");
@@ -3610,24 +3752,7 @@ void CTI_InitBlock(const uint32_t * const pixelsPtr,
             if (debug) {
               printf("uncached vertical line (%d,%d) -> (%d,%d) : (%d -> %d)\n", x, fromY, x, toY, fromOffset, toOffset);
             }
-            
-            int otherOffset;
-            int otherCol;
-            
-            if (x == 0) {
-              // Other is 1 for the first col
-              otherCol = 1;
-              if (otherCol < regionWidth) {
-                otherOffset = CTIOffset2d(otherCol, toY, regionWidth);
-              } else {
-                assert(0);
-              }
-            } else {
-              // Other is (col - 1) for all other rows
-              otherCol = x-1;
-              otherOffset = CTIOffset2d(otherCol, toY, regionWidth);
-            }
-            
+                        
             delta = ctiStruct.simpleDelta(tablePred, fromOffset, toOffset);
             
             if (debug) {

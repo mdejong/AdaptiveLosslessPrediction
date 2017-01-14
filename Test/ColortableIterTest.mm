@@ -106,11 +106,7 @@ void CTI_IterateOverPixels(
                               vector<uint32_t> & iterOrder)
 {
   
-  CTI_Iterate(pixelsPtr,
-              nullptr,
-              -1,
-              nullptr,
-              false,
+  CTI_IterateRGB(pixelsPtr,
               regionWidth, regionHeight,
               iterOrder,
               nullptr);
@@ -2236,14 +2232,12 @@ void CTI_IteratePixelsInTable(
   
   vector<uint32_t> iterOrder;
   
-  CTI_Iterate(nullptr,
+  CTI_IterateTable256(
               pixelsPtr,
               (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]),
               tableOffsets,
-              true,
               2, 3,
-              iterOrder,
-              nullptr);
+              iterOrder);
   
   cout << "done : processed " << iterOrder.size() << endl;
   
@@ -2773,16 +2767,12 @@ void CTI_IteratePixelsInTable(
   
   vector<uint32_t> iterOrder;
   
-  const bool tablePred = true;
-  
-  CTI_Iterate(nullptr,
+  CTI_IterateTable256(
               pixelsPtr,
               tableN,
               tableOffsets,
-              tablePred,
               dim, dim,
-              iterOrder,
-              nullptr);
+              iterOrder);
   
   cout << "done : processed " << iterOrder.size() << endl;
   
@@ -2952,14 +2942,12 @@ void CTI_IteratePixelsInTable(
   
   vector<uint32_t> iterOrder;
   
-  CTI_Iterate(nullptr,
+  CTI_IterateTable256(
               pixelsPtr,
               (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]),
               tableOffsets,
-              true,
               dim, dim,
-              iterOrder,
-              nullptr);
+              iterOrder);
   
   cout << "done : processed " << iterOrder.size() << endl;
   
@@ -3024,14 +3012,12 @@ void CTI_IteratePixelsInTable(
   
   vector<uint32_t> iterOrder;
   
-  CTI_Iterate(nullptr,
+  CTI_IterateTable256(
               pixelsPtr,
               (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]),
               tableOffsets,
-              true,
               dim, dim,
-              iterOrder,
-              nullptr);
+              iterOrder);
   
   cout << "done : processed " << iterOrder.size() << endl;
   
@@ -3090,14 +3076,12 @@ void CTI_IteratePixelsInTable(
   
   vector<uint32_t> iterOrder;
   
-  CTI_Iterate(nullptr,
+  CTI_IterateTable256(
               pixelsPtr,
               (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]),
               tableOffsets,
-              true,
               width, height,
-              iterOrder,
-              nullptr);
+              iterOrder);
   
   cout << "done : processed " << iterOrder.size() << endl;
   

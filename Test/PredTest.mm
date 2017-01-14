@@ -107,11 +107,7 @@ void CTI_IteratePixelsInTable(
     pixelPtr[i] = pixel;
   }
   
-  CTI_Iterate(pixelPtr,
-              nullptr,
-              -1,
-              nullptr,
-              tablePred,
+  CTI_IterateRGB(pixelPtr,
               regionWidth, regionHeight,
               iterOrder,
               nullptr);
@@ -189,14 +185,6 @@ void CTI_IteratePixelsInTable(
       uint32_t pixel = colortablePixelsPtr[colortableOffset];
       pixelPtr[i] = pixel;
     }
-
-//    CTI_Iterate(pixelPtr,
-//                nullptr,
-//                -1,
-//                nullptr,
-//                tablePred,
-//                dim, dim,
-//                iterOrder);
     
     CTI_Struct ctiStruct;
     
@@ -320,22 +308,6 @@ void CTI_IteratePixelsInTable(
   
   XCTAssert(iterOrder.back() == 2);
   
-  /*
-  
-  vector<vector<uint32_t> > iterOrderMat = format2DVec(iterOrder, 4, 4);
-  
-  vector<vector<uint32_t> > expectedMat = format2DVec(expected, 4, 4);
-  
-  XCTAssert(iterOrderMat == expectedMat);
-  
-  for ( auto & row : iterOrderMat ) {
-    cout << keyFromVec(row) << endl;
-  }
-  
-  cout << "done" << endl;
-  
-  */
-   
   return;
 }
 

@@ -138,15 +138,12 @@ process_file(PngContext *cxt)
     
     for (int i = 0; i < numIterationLoops; i++)
     {
-      CTI_Iterate(nullptr,
+      CTI_IterateTable256(
                   colortablePixels,
                   numUniquePixels,
                   colortableOffsets,
-                  true,
                   cxt->width, cxt->height,
-                  iterOrder,
-                  nullptr);
-      
+                  iterOrder);
     }
     
     elapsed = stop_timer(startT);
@@ -166,15 +163,10 @@ process_file(PngContext *cxt)
     
     for (int i = 0; i < numIterationLoops; i++)
     {
-      CTI_Iterate(cxt->pixels,
-                  nullptr,
-                  -1,
-                  nullptr,
-                  false,
-                  cxt->width, cxt->height,
-                  iterOrder,
-                  deltasPtr);
-      
+      CTI_IterateRGB(cxt->pixels,
+                     cxt->width, cxt->height,
+                     iterOrder,
+                     deltasPtr);
     }
     
     elapsed = stop_timer(startT);

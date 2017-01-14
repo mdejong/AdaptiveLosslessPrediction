@@ -317,6 +317,49 @@ public:
     processedFlags[offset] = 1;
   }
 
+  // Debug print results hashtable
+  
+  void printResults()
+  {
+#if defined(DEBUG)
+    if (results.size() > 0) {
+      printf("results:\n");
+      
+      results["numPixels"] = width * height;
+      
+      int minRemove = results["minRemove"];
+      int multipleRemoves = minRemove - (width * height);
+      results["numRemovedOver"] = multipleRemoves;
+      
+      vector<string> keys;
+      for ( auto pair : results ) {
+        keys.push_back(pair.first);
+      }
+      sort(begin(keys), end(keys));
+      
+      for ( string key : keys ) {
+        int val = results[key];
+        printf("%20s = %8d\n", key.c_str(), val);
+      }
+      printf("results done:\n");
+    }
+#endif // DEBUG
+  }
+  
+  // Debug check to make sure all pixels in image were processed
+  
+  bool allPixelsProcessed()
+  {
+    for ( int y = 0; y < height; y++ ) {
+      for ( int x = 0; x < width; x++ ) {
+        if (wasProcessed(x, y) == false) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+  
   // Count number of H or V deltas on wait list.
   
   int countDeltasTypes(bool countH, bool countV) {
@@ -3848,27 +3891,24 @@ void CTI_Setup(CTI_Struct & ctiStruct,
   return;
 }
 
-// Copy pixels starting from origin (x,y) up to width x height
-// into a smaller buffer. Returns the number of pixels copied.
-// Note that this method supports a copy into a buffer that
-// is of a different width that the original buffer.
+// Entry point for iteration over colortable based pixel differences.
+// Instead of a 3D delta this method makes use of a delta value that
+// is based on the difference between 2D table offsets as an unsigned
+// value. This method supports returning only the iteration order.
 
 static inline
-void CTI_Iterate(
-                 const uint32_t * const pixelsPtr,
+void CTI_IterateTable256(
                  const uint32_t * const colortablePixelsPtr,
                  const int colortableNumPixels,
                  const uint8_t * const tableOffsetsPtr,
-                 const bool tablePred,
                  const int width,
                  const int height,
-                 vector<uint32_t> & iterOrder,
-                 uint32_t * const deltasPtr)
+                 vector<uint32_t> & iterOrder)
 {
   const bool debug = false;
   
   if (debug) {
-    printf("CTI_Iterate\n");
+    printf("CTI_IterateTable256\n");
   }
   
   // User supplied lambda functions which do pixel lookup and delta calc for different knds of input
@@ -3878,22 +3918,8 @@ void CTI_Iterate(
     return pixel;
   };
   
-  auto simpleLookupPixelsL = [pixelsPtr] (int offset)->uint32_t {
-    uint32_t pixel;
-    pixel = pixelsPtr[offset];
-#if defined(DEBUG)
-    pixel = pixel & 0x00FFFFFF;
-#endif // DEBUG
-    return pixel;
-  };
-  
   auto simpleDetlaTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int fromOffset, int toOffset)->int {
     int delta = CTITablePredict2(tableOffsetsPtr, colortablePixelsPtr, fromOffset, toOffset, colortableNumPixels);
-    return delta;
-  };
-  
-  auto simpleDetlaPixelsL = [pixelsPtr] (int fromOffset, int toOffset)->int {
-    int delta = CTIPredict2(pixelsPtr, fromOffset, toOffset);
     return delta;
   };
   
@@ -3905,80 +3931,36 @@ void CTI_Iterate(
 
   int waitListN;
   
-  if (tablePred) {
-    // Max table size is one byte
-    waitListN = (255+1);
-  } else {
-    // 3 * byte deltas
-    waitListN = (255+255+255+1);
-  }
+  // Max table size is one byte
+  waitListN = (255+1);
   
-  if (tablePred) {
-    CTI_Setup(ctiStruct,
-              simpleLookupTableL,
-              simpleDetlaTableL,
-              waitListN,
-              width,
-              height,
-              iterOrder,
-              deltasPtr);
-  } else {
-    CTI_Setup(ctiStruct,
-              simpleLookupPixelsL,
-              simpleDetlaPixelsL,
-              waitListN,
-              width,
-              height,
-              iterOrder,
-              deltasPtr);
-  }
+  CTI_Setup(ctiStruct,
+            simpleLookupTableL,
+            simpleDetlaTableL,
+            waitListN,
+            width,
+            height,
+            iterOrder,
+            nullptr);
   
   // Iterate over all remaining pixels based on min cost huristic
   
   bool hasMoreDeltas;
   
   while (1) {
-    if (tablePred) {
-      hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                      simpleLookupTableL,
-                                      simpleDetlaTableL,
-                                      iterOrder,
-                                      deltasPtr);
-    } else {
-      hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                      simpleLookupPixelsL,
-                                      simpleDetlaPixelsL,
-                                      iterOrder,
-                                      deltasPtr);
-    }
+    hasMoreDeltas = CTI_IterateStep(ctiStruct,
+                                    simpleLookupTableL,
+                                    simpleDetlaTableL,
+                                    iterOrder,
+                                    nullptr);
     
     if (!hasMoreDeltas) {
       break;
     }
   }
-  
+
 #if defined(DEBUG)
-  if (ctiStruct.results.size() > 0) {
-    printf("results:\n");
-    
-    ctiStruct.results["numPixels"] = width * height;
-    
-    int minRemove = ctiStruct.results["minRemove"];
-    int multipleRemoves = minRemove - (width * height);
-    ctiStruct.results["numRemovedOver"] = multipleRemoves;
-    
-    vector<string> keys;
-    for ( auto pair : ctiStruct.results ) {
-      keys.push_back(pair.first);
-    }
-    sort(begin(keys), end(keys));
-    
-    for ( string key : keys ) {
-      int val = ctiStruct.results[key];
-      printf("%20s = %8d\n", key.c_str(), val);
-    }
-    printf("results done:\n");
-  }
+  ctiStruct.printResults();
 #endif // DEBUG
   
   if (debug) {
@@ -3992,11 +3974,96 @@ void CTI_Iterate(
   }
   
 #if defined(DEBUG)
-  for ( int y = 0; y < height; y++ ) {
-    for ( int x = 0; x < width; x++ ) {
-      assert(ctiStruct.wasProcessed(x, y) == true);
+  assert(ctiStruct.allPixelsProcessed() == true);
+#endif // DEBUG
+  
+  return;
+}
+
+// Entry point for iteration by RGB pixels and the
+// min distance is calculated in terms of a sum
+// of the abs() of 3 components (dR + dG + dB)
+
+static inline
+void CTI_IterateRGB(
+                 const uint32_t * const pixelsPtr,
+                 const int width,
+                 const int height,
+                 vector<uint32_t> & iterOrder,
+                 uint32_t * const deltasPtr)
+{
+  const bool debug = false;
+  
+  if (debug) {
+    printf("CTI_IterateRGB\n");
+  }
+  
+  auto simpleLookupPixelsL = [pixelsPtr] (int offset)->uint32_t {
+    uint32_t pixel;
+    pixel = pixelsPtr[offset];
+#if defined(DEBUG)
+    pixel = pixel & 0x00FFFFFF;
+#endif // DEBUG
+    return pixel;
+  };
+  
+  auto simpleDetlaPixelsL = [pixelsPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTIPredict2(pixelsPtr, fromOffset, toOffset);
+    return delta;
+  };
+  
+  CTI_Struct ctiStruct;
+  
+  // The core data structure is a prio stack with statically defined linked list nodes
+  // so that O(1) access to the element with the smallest prio value is
+  // always available.
+  
+  int waitListN;
+  
+  // 3 * byte deltas
+  waitListN = (255+255+255+1);
+  
+  CTI_Setup(ctiStruct,
+            simpleLookupPixelsL,
+            simpleDetlaPixelsL,
+            waitListN,
+            width,
+            height,
+            iterOrder,
+            deltasPtr);
+  
+  // Iterate over all remaining pixels based on min cost huristic
+  
+  bool hasMoreDeltas;
+  
+  while (1) {
+    hasMoreDeltas = CTI_IterateStep(ctiStruct,
+                                    simpleLookupPixelsL,
+                                    simpleDetlaPixelsL,
+                                    iterOrder,
+                                    deltasPtr);
+    
+    if (!hasMoreDeltas) {
+      break;
     }
   }
+  
+#if defined(DEBUG)
+  ctiStruct.printResults();
+#endif // DEBUG
+  
+  if (debug) {
+    int N = (int) iterOrder.size();
+    
+    printf("N = %d\n", N);
+    
+    for ( int i = 0; i < N; i++ ) {
+      printf("iter %d\n", iterOrder[i]);
+    }
+  }
+  
+#if defined(DEBUG)
+  assert(ctiStruct.allPixelsProcessed() == true);
 #endif // DEBUG
   
   return;

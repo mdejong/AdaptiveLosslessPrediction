@@ -543,17 +543,33 @@ void CTI_IteratePixelsInTable(
   
   CTI_Struct ctiStruct;
   
-  const bool tablePred = false;
+  //const bool tablePred = false;
   
   const int regionWidth = 2;
   const int regionHeight = 3;
   
+  // Lambdas for pixel lookup and delta calc
+  
+  auto simpleLookupPixelsL = [imagePixels] (int offset)->uint32_t {
+    uint32_t pixel;
+    pixel = imagePixels[offset];
+#if defined(DEBUG)
+    pixel = pixel & 0x00FFFFFF;
+#endif // DEBUG
+    return pixel;
+  };
+  
+  auto simpleDetlaPixelsL = [imagePixels] (int fromOffset, int toOffset)->int {
+    int delta = CTIPredict2(imagePixels, fromOffset, toOffset);
+    return delta;
+  };
+  
+  int waitListN = (256*3)+1;
+  
   CTI_Setup(ctiStruct,
-            imagePixels,
-            nullptr,
-            -1,
-            nullptr,
-            tablePred,
+            simpleLookupPixelsL,
+            simpleDetlaPixelsL,
+            waitListN,
             regionWidth, regionHeight,
             iterOrder,
             nullptr);
@@ -563,7 +579,8 @@ void CTI_IteratePixelsInTable(
   bool hasMoreDeltas;
   
   hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                  tablePred,
+                                  simpleLookupPixelsL,
+                                  simpleDetlaPixelsL,
                                   iterOrder,
                                   nullptr);
   
@@ -578,7 +595,8 @@ void CTI_IteratePixelsInTable(
   // Choose (1, 2) as the final pixel to be processed
   
   hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                  tablePred,
+                                  simpleLookupPixelsL,
+                                  simpleDetlaPixelsL,
                                   iterOrder,
                                   nullptr);
   
@@ -591,7 +609,7 @@ void CTI_IteratePixelsInTable(
   CoordDelta minDelta;
   
   CTI_MinimumSearch(ctiStruct,
-                    tablePred,
+                    simpleDetlaPixelsL,
                     &minDelta);
    
     if (minDelta.isEmpty()) {
@@ -641,6 +659,8 @@ void CTI_IteratePixelsInTable(
     0, 1, 2,
     0, 1, 2
   };
+
+  uint8_t *tableOffsetsPtr = tableOffsets;
   
   vector<uint32_t> iterOrder;
   
@@ -648,18 +668,28 @@ void CTI_IteratePixelsInTable(
   
   CTI_Struct ctiStruct;
   
-  int numColortablePixels = (int)sizeof(colortablePixelsPtr)/sizeof(colortablePixelsPtr[0]);
-  const bool tablePred = true;
+  int colortableNumPixels = (int)sizeof(colortablePixelsPtr)/sizeof(colortablePixelsPtr[0]);
+  //const bool tablePred = true;
   
   const int regionWidth = 3;
   const int regionHeight = 3;
   
+  auto simpleLookupTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int offset)->uint32_t {
+    uint32_t pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
+    return pixel;
+  };
+  
+  auto simpleDetlaTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTITablePredict2(tableOffsetsPtr, colortablePixelsPtr, fromOffset, toOffset, colortableNumPixels);
+    return delta;
+  };
+  
+  int waitListN = (256)+1;
+  
   CTI_Setup(ctiStruct,
-            nullptr,
-            colortablePixelsPtr,
-            numColortablePixels,
-            tableOffsets,
-            tablePred,
+            simpleLookupTableL,
+            simpleDetlaTableL,
+            waitListN,
             regionWidth, regionHeight,
             iterOrder,
             nullptr);
@@ -669,7 +699,8 @@ void CTI_IteratePixelsInTable(
   bool hasMoreDeltas;
   
   hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                  tablePred,
+                                  simpleLookupTableL,
+                                  simpleDetlaTableL,
                                   iterOrder,
                                   nullptr);
   
@@ -684,7 +715,8 @@ void CTI_IteratePixelsInTable(
   // Choose (1, 2) as the pixel to be processed
   
   hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                  tablePred,
+                                  simpleLookupTableL,
+                                  simpleDetlaTableL,
                                   iterOrder,
                                   nullptr);
   
@@ -764,6 +796,8 @@ void CTI_IteratePixelsInTable(
     0, 1, 2
   };
   
+  uint8_t *tableOffsetsPtr = tableOffsets;
+  
   vector<uint32_t> iterOrder;
   
   // Do 1 iter step after init logic
@@ -771,17 +805,27 @@ void CTI_IteratePixelsInTable(
   CTI_Struct ctiStruct;
   
   int colortableNumPixels = (int)sizeof(colortablePixelsPtr)/sizeof(colortablePixelsPtr[0]);
-  const bool tablePred = true;
+  //const bool tablePred = true;
   
   const int regionWidth = 3;
   const int regionHeight = 3;
   
+  auto simpleLookupTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int offset)->uint32_t {
+    uint32_t pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
+    return pixel;
+  };
+  
+  auto simpleDetlaTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTITablePredict2(tableOffsetsPtr, colortablePixelsPtr, fromOffset, toOffset, colortableNumPixels);
+    return delta;
+  };
+  
+  int waitListN = (256)+1;
+  
   CTI_Setup(ctiStruct,
-            nullptr,
-            colortablePixelsPtr,
-            colortableNumPixels,
-            tableOffsets,
-            tablePred,
+            simpleLookupTableL,
+            simpleDetlaTableL,
+            waitListN,
             regionWidth, regionHeight,
             iterOrder,
             nullptr);
@@ -795,7 +839,7 @@ void CTI_IteratePixelsInTable(
       0, 1, 1
     };
     
-    CTI_ProcessFlags(ctiStruct, processed, tablePred);
+    CTI_ProcessFlags(ctiStruct, processed, simpleDetlaTableL);
   }
   
   ctiStruct.clearWaitList();
@@ -810,7 +854,8 @@ void CTI_IteratePixelsInTable(
   bool hasMoreDeltas;
   
   hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                  tablePred,
+                                  simpleLookupTableL,
+                                  simpleDetlaTableL,
                                   iterOrder,
                                   nullptr);
   XCTAssert(hasMoreDeltas);
@@ -867,24 +912,37 @@ void CTI_IteratePixelsInTable(
     0, 1, 2
   };
   
+  uint32_t *colortablePixelsPtr = pixelsPtr;
+  uint8_t *tableOffsetsPtr = tableOffsets;
+  
   vector<uint32_t> iterOrder;
   
   // Do 1 iter step after init logic
   
   CTI_Struct ctiStruct;
   
-  int numPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
-  const bool tablePred = true;
+  int colortableNumPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
+  //const bool tablePred = true;
   
   const int regionWidth = 3;
   const int regionHeight = 3;
   
+  auto simpleLookupTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int offset)->uint32_t {
+    uint32_t pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
+    return pixel;
+  };
+  
+  auto simpleDetlaTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTITablePredict2(tableOffsetsPtr, colortablePixelsPtr, fromOffset, toOffset, colortableNumPixels);
+    return delta;
+  };
+  
+  int waitListN = (256)+1;
+  
   CTI_Setup(ctiStruct,
-            nullptr,
-            pixelsPtr,
-            numPixels,
-            tableOffsets,
-            tablePred,
+            simpleLookupTableL,
+            simpleDetlaTableL,
+            waitListN,
             regionWidth, regionHeight,
             iterOrder,
             nullptr);
@@ -898,7 +956,7 @@ void CTI_IteratePixelsInTable(
       1, 0, 1
     };
     
-    CTI_ProcessFlags(ctiStruct, processed, tablePred);
+    CTI_ProcessFlags(ctiStruct, processed, simpleDetlaTableL);
   }
   
   ctiStruct.clearWaitList();
@@ -913,7 +971,8 @@ void CTI_IteratePixelsInTable(
   bool hasMoreDeltas;
   
   hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                  tablePred,
+                                  simpleLookupTableL,
+                                  simpleDetlaTableL,
                                   iterOrder,
                                   nullptr);
   XCTAssert(hasMoreDeltas);
@@ -973,24 +1032,37 @@ void CTI_IteratePixelsInTable(
     0, 1, 2, 3
   };
   
+  uint32_t *colortablePixelsPtr = pixelsPtr;
+  uint8_t *tableOffsetsPtr = tableOffsets;
+  
   vector<uint32_t> iterOrder;
   
   // Do 1 iter step after init logic
   
   CTI_Struct ctiStruct;
   
-  int numPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
-  const bool tablePred = true;
+  int colortableNumPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
+  //const bool tablePred = true;
   
   const int regionWidth = 4;
   const int regionHeight = 4;
   
+  auto simpleLookupTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int offset)->uint32_t {
+    uint32_t pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
+    return pixel;
+  };
+  
+  auto simpleDetlaTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTITablePredict2(tableOffsetsPtr, colortablePixelsPtr, fromOffset, toOffset, colortableNumPixels);
+    return delta;
+  };
+  
+  int waitListN = (256)+1;
+  
   CTI_Setup(ctiStruct,
-            nullptr,
-            pixelsPtr,
-            numPixels,
-            tableOffsets,
-            tablePred,
+            simpleLookupTableL,
+            simpleDetlaTableL,
+            waitListN,
             regionWidth, regionHeight,
             iterOrder,
             nullptr);
@@ -1005,7 +1077,7 @@ void CTI_IteratePixelsInTable(
       1, 1, 1, 1
     };
     
-    CTI_ProcessFlags(ctiStruct, processed, tablePred);
+    CTI_ProcessFlags(ctiStruct, processed, simpleDetlaTableL);
   }
 
   ctiStruct.clearWaitList();
@@ -1034,7 +1106,8 @@ void CTI_IteratePixelsInTable(
   bool hasMoreDeltas;
   
   hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                  tablePred,
+                                  simpleLookupTableL,
+                                  simpleDetlaTableL,
                                   iterOrder,
                                   nullptr);
   
@@ -1110,24 +1183,37 @@ void CTI_IteratePixelsInTable(
     0, 1, 2, 3
   };
   
+  uint32_t *colortablePixelsPtr = pixelsPtr;
+  uint8_t *tableOffsetsPtr = tableOffsets;
+  
   vector<uint32_t> iterOrder;
   
   // Do 1 iter step after init logic
   
   CTI_Struct ctiStruct;
   
-  int numPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
-  const bool tablePred = true;
+  int colortableNumPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
+  //const bool tablePred = true;
+  
+  auto simpleLookupTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int offset)->uint32_t {
+    uint32_t pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
+    return pixel;
+  };
+  
+  auto simpleDetlaTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTITablePredict2(tableOffsetsPtr, colortablePixelsPtr, fromOffset, toOffset, colortableNumPixels);
+    return delta;
+  };
+  
+  int waitListN = (256)+1;
   
   const int regionWidth = 4;
   const int regionHeight = 4;
   
   CTI_Setup(ctiStruct,
-            nullptr,
-            pixelsPtr,
-            numPixels,
-            tableOffsets,
-            tablePred,
+            simpleLookupTableL,
+            simpleDetlaTableL,
+            waitListN,
             regionWidth, regionHeight,
             iterOrder,
             nullptr);
@@ -1142,7 +1228,7 @@ void CTI_IteratePixelsInTable(
       1, 1, 0, 1
     };
     
-    CTI_ProcessFlags(ctiStruct, processed, tablePred);
+    CTI_ProcessFlags(ctiStruct, processed, simpleDetlaTableL);
   }
   
   ctiStruct.clearWaitList();
@@ -1169,7 +1255,8 @@ void CTI_IteratePixelsInTable(
   bool hasMoreDeltas;
   
   hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                  tablePred,
+                                  simpleLookupTableL,
+                                  simpleDetlaTableL,
                                   iterOrder,
                                   nullptr);
   
@@ -1250,24 +1337,37 @@ void CTI_IteratePixelsInTable(
     0, 0, 0, 0
   };
   
+  uint32_t *colortablePixelsPtr = pixelsPtr;
+  uint8_t *tableOffsetsPtr = tableOffsets;
+  
   vector<uint32_t> iterOrder;
   
   // Do 1 iter step after init logic
   
   CTI_Struct ctiStruct;
   
-  int numPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
-  const bool tablePred = true;
+  int colortableNumPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
+  //const bool tablePred = true;
+  
+  auto simpleLookupTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int offset)->uint32_t {
+    uint32_t pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
+    return pixel;
+  };
+  
+  auto simpleDetlaTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTITablePredict2(tableOffsetsPtr, colortablePixelsPtr, fromOffset, toOffset, colortableNumPixels);
+    return delta;
+  };
+  
+  int waitListN = (256)+1;
   
   const int regionWidth = 4;
   const int regionHeight = 4;
   
   CTI_Setup(ctiStruct,
-            nullptr,
-            pixelsPtr,
-            numPixels,
-            tableOffsets,
-            tablePred,
+            simpleLookupTableL,
+            simpleDetlaTableL,
+            waitListN,
             regionWidth, regionHeight,
             iterOrder,
             nullptr);
@@ -1282,7 +1382,7 @@ void CTI_IteratePixelsInTable(
       1, 1, 1, 1
     };
     
-    CTI_ProcessFlags(ctiStruct, processed, tablePred);
+    CTI_ProcessFlags(ctiStruct, processed, simpleDetlaTableL);
   }
   
   ctiStruct.clearWaitList();
@@ -1304,7 +1404,8 @@ void CTI_IteratePixelsInTable(
   bool hasMoreDeltas;
   
   hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                  tablePred,
+                                  simpleLookupTableL,
+                                  simpleDetlaTableL,
                                   iterOrder,
                                   nullptr);
   
@@ -1389,24 +1490,37 @@ void CTI_IteratePixelsInTable(
     0, 0, 0, 0
   };
   
+  uint32_t *colortablePixelsPtr = pixelsPtr;
+  uint8_t *tableOffsetsPtr = tableOffsets;
+  
   vector<uint32_t> iterOrder;
   
   // Do 1 iter step after init logic
   
   CTI_Struct ctiStruct;
   
-  int numPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
-  const bool tablePred = true;
+  int colortableNumPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
+  //const bool tablePred = true;
   
   const int regionWidth = 4;
   const int regionHeight = 4;
   
+  auto simpleLookupTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int offset)->uint32_t {
+    uint32_t pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
+    return pixel;
+  };
+  
+  auto simpleDetlaTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTITablePredict2(tableOffsetsPtr, colortablePixelsPtr, fromOffset, toOffset, colortableNumPixels);
+    return delta;
+  };
+  
+  int waitListN = (256)+1;
+  
   CTI_Setup(ctiStruct,
-            nullptr,
-            pixelsPtr,
-            numPixels,
-            tableOffsets,
-            tablePred,
+            simpleLookupTableL,
+            simpleDetlaTableL,
+            waitListN,
             regionWidth, regionHeight,
             iterOrder,
             nullptr);
@@ -1421,7 +1535,7 @@ void CTI_IteratePixelsInTable(
       1, 1, 0, 1
     };
     
-    CTI_ProcessFlags(ctiStruct, processed, tablePred);
+    CTI_ProcessFlags(ctiStruct, processed, simpleDetlaTableL);
   }
   
   ctiStruct.clearWaitList();
@@ -1443,7 +1557,8 @@ void CTI_IteratePixelsInTable(
   bool hasMoreDeltas;
   
   hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                  tablePred,
+                                  simpleLookupTableL,
+                                  simpleDetlaTableL,
                                   iterOrder,
                                   nullptr);
   
@@ -1527,24 +1642,37 @@ void CTI_IteratePixelsInTable(
     0, 0, 0, 0
   };
   
+  uint32_t *colortablePixelsPtr = pixelsPtr;
+  uint8_t *tableOffsetsPtr = tableOffsets;
+  
   vector<uint32_t> iterOrder;
   
   // Do 1 iter step after init logic
   
   CTI_Struct ctiStruct;
   
-  int numPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
-  const bool tablePred = true;
+  int colortableNumPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
+  //const bool tablePred = true;
   
   const int regionWidth = 4;
   const int regionHeight = 4;
   
+  auto simpleLookupTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int offset)->uint32_t {
+    uint32_t pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
+    return pixel;
+  };
+  
+  auto simpleDetlaTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTITablePredict2(tableOffsetsPtr, colortablePixelsPtr, fromOffset, toOffset, colortableNumPixels);
+    return delta;
+  };
+  
+  int waitListN = (256)+1;
+  
   CTI_Setup(ctiStruct,
-            nullptr,
-            pixelsPtr,
-            numPixels,
-            tableOffsets,
-            tablePred,
+            simpleLookupTableL,
+            simpleDetlaTableL,
+            waitListN,
             regionWidth, regionHeight,
             iterOrder,
             nullptr);
@@ -1559,7 +1687,7 @@ void CTI_IteratePixelsInTable(
       1, 1, 1, 1
     };
     
-    CTI_ProcessFlags(ctiStruct, processed, tablePred);
+    CTI_ProcessFlags(ctiStruct, processed, simpleDetlaTableL);
   }
   
   ctiStruct.clearWaitList();
@@ -1574,7 +1702,8 @@ void CTI_IteratePixelsInTable(
   bool hasMoreDeltas;
   
   hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                  tablePred,
+                                  simpleLookupTableL,
+                                  simpleDetlaTableL,
                                   iterOrder,
                                   nullptr);
   
@@ -1654,24 +1783,37 @@ void CTI_IteratePixelsInTable(
     0, 0, 0, 0
   };
   
+  uint32_t *colortablePixelsPtr = pixelsPtr;
+  uint8_t *tableOffsetsPtr = tableOffsets;
+  
   vector<uint32_t> iterOrder;
   
   // Do 1 iter step after init logic
   
   CTI_Struct ctiStruct;
   
-  int numPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
-  const bool tablePred = true;
+  int colortableNumPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
+  //const bool tablePred = true;
   
   const int regionWidth = 4;
   const int regionHeight = 4;
   
+  auto simpleLookupTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int offset)->uint32_t {
+    uint32_t pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
+    return pixel;
+  };
+  
+  auto simpleDetlaTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTITablePredict2(tableOffsetsPtr, colortablePixelsPtr, fromOffset, toOffset, colortableNumPixels);
+    return delta;
+  };
+  
+  int waitListN = (256)+1;
+  
   CTI_Setup(ctiStruct,
-            nullptr,
-            pixelsPtr,
-            numPixels,
-            tableOffsets,
-            tablePred,
+            simpleLookupTableL,
+            simpleDetlaTableL,
+            waitListN,
             regionWidth, regionHeight,
             iterOrder,
             nullptr);
@@ -1686,7 +1828,7 @@ void CTI_IteratePixelsInTable(
       1, 1, 0, 1
     };
     
-    CTI_ProcessFlags(ctiStruct, processed, tablePred);
+    CTI_ProcessFlags(ctiStruct, processed, simpleDetlaTableL);
   }
   
   ctiStruct.clearWaitList();
@@ -1701,7 +1843,8 @@ void CTI_IteratePixelsInTable(
   bool hasMoreDeltas;
   
   hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                  tablePred,
+                                  simpleLookupTableL,
+                                  simpleDetlaTableL,
                                   iterOrder,
                                   nullptr);
   
@@ -1781,24 +1924,37 @@ void CTI_IteratePixelsInTable(
     0, 0, 0, 0
   };
   
+  uint32_t *colortablePixelsPtr = pixelsPtr;
+  uint8_t *tableOffsetsPtr = tableOffsets;
+  
   vector<uint32_t> iterOrder;
   
   // Do 1 iter step after init logic
   
   CTI_Struct ctiStruct;
   
-  int numPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
-  const bool tablePred = true;
+  int colortableNumPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
+  //const bool tablePred = true;
   
   const int regionWidth = 4;
   const int regionHeight = 4;
   
+  auto simpleLookupTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int offset)->uint32_t {
+    uint32_t pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
+    return pixel;
+  };
+  
+  auto simpleDetlaTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTITablePredict2(tableOffsetsPtr, colortablePixelsPtr, fromOffset, toOffset, colortableNumPixels);
+    return delta;
+  };
+
+  int waitListN = (256)+1;
+  
   CTI_Setup(ctiStruct,
-            nullptr,
-            pixelsPtr,
-            numPixels,
-            tableOffsets,
-            tablePred,
+            simpleLookupTableL,
+            simpleDetlaTableL,
+            waitListN,
             regionWidth, regionHeight,
             iterOrder,
             nullptr);
@@ -1815,9 +1971,9 @@ void CTI_IteratePixelsInTable(
   
   // Cache must be explicitly updated step by step
   ctiStruct.processedFlags[2] = 1;
-  ctiStruct.updateCache(tablePred, 2, 0);
+  ctiStruct.updateCache(simpleDetlaTableL, 2, 0);
   ctiStruct.processedFlags[3] = 1;
-  ctiStruct.updateCache(tablePred, 3, 0);
+  ctiStruct.updateCache(simpleDetlaTableL, 3, 0);
   
   // Clear cache for (1, 1)
   {
@@ -1840,25 +1996,25 @@ void CTI_IteratePixelsInTable(
   }
   
   ctiStruct.processedFlags[6] = 1;
-  ctiStruct.updateCache(tablePred, 2, 1);
+  ctiStruct.updateCache(simpleDetlaTableL, 2, 1);
   ctiStruct.processedFlags[7] = 1;
-  ctiStruct.updateCache(tablePred, 3, 1);
+  ctiStruct.updateCache(simpleDetlaTableL, 3, 1);
   
   ctiStruct.processedFlags[8] = 1;
-  ctiStruct.updateCache(tablePred, 0, 2);
+  ctiStruct.updateCache(simpleDetlaTableL, 0, 2);
   ctiStruct.processedFlags[9] = 1;
-  ctiStruct.updateCache(tablePred, 1, 2);
+  ctiStruct.updateCache(simpleDetlaTableL, 1, 2);
   // Skip 10
   ctiStruct.processedFlags[11] = 1;
-  ctiStruct.updateCache(tablePred, 3, 2);
+  ctiStruct.updateCache(simpleDetlaTableL, 3, 2);
   
   ctiStruct.processedFlags[12] = 1;
-  ctiStruct.updateCache(tablePred, 0, 3);
+  ctiStruct.updateCache(simpleDetlaTableL, 0, 3);
   ctiStruct.processedFlags[13] = 1;
-  ctiStruct.updateCache(tablePred, 1, 3);
+  ctiStruct.updateCache(simpleDetlaTableL, 1, 3);
   // Skip 14
   ctiStruct.processedFlags[15] = 1;
-  ctiStruct.updateCache(tablePred, 3, 3);
+  ctiStruct.updateCache(simpleDetlaTableL, 3, 3);
   
   ctiStruct.clearWaitList();
   
@@ -1872,7 +2028,8 @@ void CTI_IteratePixelsInTable(
   bool hasMoreDeltas;
   
   hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                  tablePred,
+                                  simpleLookupTableL,
+                                  simpleDetlaTableL,
                                   iterOrder,
                                   nullptr);
   
@@ -1933,24 +2090,37 @@ void CTI_IteratePixelsInTable(
     0, 0, 0, 0, 0
   };
   
+  uint32_t *colortablePixelsPtr = pixelsPtr;
+  uint8_t *tableOffsetsPtr = tableOffsets;
+  
   vector<uint32_t> iterOrder;
   
   // Do 1 iter step after init logic
   
   CTI_Struct ctiStruct;
   
-  int numPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
-  const bool tablePred = true;
+  int colortableNumPixels = (int)sizeof(pixelsPtr)/sizeof(pixelsPtr[0]);
+  //const bool tablePred = true;
   
   const int regionWidth = 5;
   const int regionHeight = 3;
   
+  auto simpleLookupTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int offset)->uint32_t {
+    uint32_t pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
+    return pixel;
+  };
+  
+  auto simpleDetlaTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTITablePredict2(tableOffsetsPtr, colortablePixelsPtr, fromOffset, toOffset, colortableNumPixels);
+    return delta;
+  };
+  
+  int waitListN = (256)+1;
+
   CTI_Setup(ctiStruct,
-            nullptr,
-            pixelsPtr,
-            numPixels,
-            tableOffsets,
-            tablePred,
+            simpleLookupTableL,
+            simpleDetlaTableL,
+            waitListN,
             regionWidth, regionHeight,
             iterOrder,
             nullptr);
@@ -1968,7 +2138,7 @@ void CTI_IteratePixelsInTable(
       1, 1, 0, 1, 0
     };
     
-    CTI_ProcessFlags(ctiStruct, processed, tablePred);
+    CTI_ProcessFlags(ctiStruct, processed, simpleDetlaTableL);
   }
   
   ctiStruct.clearWaitList();
@@ -1983,7 +2153,8 @@ void CTI_IteratePixelsInTable(
   bool hasMoreDeltas;
   
   hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                  tablePred,
+                                  simpleLookupTableL,
+                                  simpleDetlaTableL,
                                   iterOrder,
                                   nullptr);
   

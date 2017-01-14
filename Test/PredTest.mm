@@ -175,7 +175,7 @@ void CTI_IteratePixelsInTable(
   vector<uint32_t> iterOrder;
   
   {
-    const bool tablePred = false;
+    //const bool tablePred = false;
     
     int width = dim;
     int height = dim;
@@ -200,14 +200,28 @@ void CTI_IteratePixelsInTable(
     
     CTI_Struct ctiStruct;
     
+    auto simpleLookupPixelsL = [pixelPtr] (int offset)->uint32_t {
+      uint32_t pixel;
+      pixel = pixelPtr[offset];
+#if defined(DEBUG)
+      pixel = pixel & 0x00FFFFFF;
+#endif // DEBUG
+      return pixel;
+    };
+    
+    auto simpleDetlaPixelsL = [pixelPtr] (int fromOffset, int toOffset)->int {
+      int delta = CTIPredict2(pixelPtr, fromOffset, toOffset);
+      return delta;
+    };
+    
+    int waitListN = (256*3)+1;
+    
     // Call setup to process the upper left pixels
     
     CTI_Setup(ctiStruct,
-              pixelPtr,
-              nullptr,
-              -1,
-              nullptr,
-              tablePred,
+              simpleLookupPixelsL,
+              simpleDetlaPixelsL,
+              waitListN,
               width, height,
               iterOrder,
               nullptr);
@@ -261,7 +275,8 @@ void CTI_IteratePixelsInTable(
     
     {
       bool hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                           tablePred,
+                                           simpleLookupPixelsL,
+                                           simpleDetlaPixelsL,
                                            iterOrder,
                                            nullptr);
       XCTAssert(hasMoreDeltas);
@@ -345,7 +360,7 @@ void CTI_IteratePixelsInTable(
   vector<uint32_t> iterOrder;
   
   {
-    const bool tablePred = false;
+    //const bool tablePred = false;
     
     int width = dim;
     int height = dim;
@@ -367,14 +382,30 @@ void CTI_IteratePixelsInTable(
     
     CTI_Struct ctiStruct;
     
+    // Lambdas for pixel lookup and delta calc
+    
+    auto simpleLookupPixelsL = [pixelsPtr] (int offset)->uint32_t {
+      uint32_t pixel;
+      pixel = pixelsPtr[offset];
+#if defined(DEBUG)
+      pixel = pixel & 0x00FFFFFF;
+#endif // DEBUG
+      return pixel;
+    };
+    
+    auto simpleDetlaPixelsL = [pixelsPtr] (int fromOffset, int toOffset)->int {
+      int delta = CTIPredict2(pixelsPtr, fromOffset, toOffset);
+      return delta;
+    };
+    
+    int waitListN = (256*3)+1;
+    
     // Call setup to process the upper left pixels
     
     CTI_Setup(ctiStruct,
-              pixelsPtr,
-              nullptr,
-              -1,
-              nullptr,
-              tablePred,
+              simpleLookupPixelsL,
+              simpleDetlaPixelsL,
+              waitListN,
               width, height,
               iterOrder,
               nullptr);
@@ -387,7 +418,7 @@ void CTI_IteratePixelsInTable(
     // - - - -
     
     uint32_t predPixel = CTI_NeighborPredict(ctiStruct,
-                                             tablePred,
+                                             simpleLookupPixelsL,
                                              2, 0);
 
     uint32_t actualPixel = pixelsPtr[1];
@@ -426,7 +457,7 @@ void CTI_IteratePixelsInTable(
   vector<uint32_t> iterOrder;
   
   {
-    const bool tablePred = false;
+    //const bool tablePred = false;
     
     int width = dim;
     int height = dim;
@@ -448,14 +479,30 @@ void CTI_IteratePixelsInTable(
     
     CTI_Struct ctiStruct;
     
+    // Lambdas for pixel lookup and delta calc
+    
+    auto simpleLookupPixelsL = [pixelsPtr] (int offset)->uint32_t {
+      uint32_t pixel;
+      pixel = pixelsPtr[offset];
+#if defined(DEBUG)
+      pixel = pixel & 0x00FFFFFF;
+#endif // DEBUG
+      return pixel;
+    };
+    
+    auto simpleDetlaPixelsL = [pixelsPtr] (int fromOffset, int toOffset)->int {
+      int delta = CTIPredict2(pixelsPtr, fromOffset, toOffset);
+      return delta;
+    };
+    
+    int waitListN = (256*3)+1;
+    
     // Call setup to process the upper left pixels
     
     CTI_Setup(ctiStruct,
-              pixelsPtr,
-              nullptr,
-              -1,
-              nullptr,
-              tablePred,
+              simpleLookupPixelsL,
+              simpleDetlaPixelsL,
+              waitListN,
               width, height,
               iterOrder,
               nullptr);
@@ -470,7 +517,7 @@ void CTI_IteratePixelsInTable(
     ctiStruct.processedFlags[7] = 1;
     
     uint32_t predPixel = CTI_NeighborPredict(ctiStruct,
-                                             tablePred,
+                                             simpleLookupPixelsL,
                                              2, 1);
     
     uint32_t actualPixel = pixelsPtr[6];
@@ -509,7 +556,7 @@ void CTI_IteratePixelsInTable(
   vector<uint32_t> iterOrder;
   
   {
-    const bool tablePred = false;
+    //const bool tablePred = false;
     
     int width = dim;
     int height = dim;
@@ -531,14 +578,30 @@ void CTI_IteratePixelsInTable(
     
     CTI_Struct ctiStruct;
     
+    // Lambdas for pixel lookup and delta calc
+    
+    auto simpleLookupPixelsL = [pixelsPtr] (int offset)->uint32_t {
+      uint32_t pixel;
+      pixel = pixelsPtr[offset];
+#if defined(DEBUG)
+      pixel = pixel & 0x00FFFFFF;
+#endif // DEBUG
+      return pixel;
+    };
+    
+    auto simpleDetlaPixelsL = [pixelsPtr] (int fromOffset, int toOffset)->int {
+      int delta = CTIPredict2(pixelsPtr, fromOffset, toOffset);
+      return delta;
+    };
+    
+    int waitListN = (256*3)+1;
+    
     // Call setup to process the upper left pixels
     
     CTI_Setup(ctiStruct,
-              pixelsPtr,
-              nullptr,
-              -1,
-              nullptr,
-              tablePred,
+              simpleLookupPixelsL,
+              simpleDetlaPixelsL,
+              waitListN,
               width, height,
               iterOrder,
               nullptr);
@@ -553,7 +616,7 @@ void CTI_IteratePixelsInTable(
     ctiStruct.processedFlags[2] = 1;
     
     uint32_t predPixel = CTI_NeighborPredict(ctiStruct,
-                                             tablePred,
+                                             simpleLookupPixelsL,
                                              2, 1);
     
     uint32_t actualPixel = pixelsPtr[6];
@@ -839,7 +902,7 @@ void CTI_IteratePixelsInTable(
     deltasPtr[i] = inPredErrors[i];
   }
   
-  const bool tablePred = false;
+  //const bool tablePred = false;
   
   CTI_Struct ctiStruct;
   
@@ -847,12 +910,28 @@ void CTI_IteratePixelsInTable(
   
   vector<uint32_t> iterOrder;
   
+  // Lambdas for pixel lookup and delta calc
+  
+  auto simpleLookupPixelsL = [pixelPtr] (int offset)->uint32_t {
+    uint32_t pixel;
+    pixel = pixelPtr[offset];
+#if defined(DEBUG)
+    pixel = pixel & 0x00FFFFFF;
+#endif // DEBUG
+    return pixel;
+  };
+  
+  auto simpleDetlaPixelsL = [pixelPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTIPredict2(pixelPtr, fromOffset, toOffset);
+    return delta;
+  };
+  
+  int waitListN = (256*3)+1;
+  
   CTI_Setup(ctiStruct,
-            pixelPtr,
-            nullptr,
-            -1,
-            nullptr,
-            tablePred,
+            simpleLookupPixelsL,
+            simpleDetlaPixelsL,
+            waitListN,
             width, height,
             iterOrder,
             nullptr);
@@ -868,7 +947,7 @@ void CTI_IteratePixelsInTable(
       1, 1, 1,
     };
     
-    CTI_ProcessFlags(ctiStruct, processed, tablePred);
+    CTI_ProcessFlags(ctiStruct, processed, simpleDetlaPixelsL);
   }
   
   // Prediction of (2,1) has U, D, L neighbors.
@@ -878,7 +957,7 @@ void CTI_IteratePixelsInTable(
   // indicate that the weight V should be a lot higher.
   
   predPixel = CTI_NeighborPredict2(ctiStruct,
-                                   tablePred,
+                                   simpleLookupPixelsL,
                                    deltasPtr,
                                    2, 1);
   
@@ -941,20 +1020,36 @@ void CTI_IteratePixelsInTable(
     deltasPtr[i] = inPredErrors[i];
   }
   
-  const bool tablePred = false;
+  //const bool tablePred = false;
   
   CTI_Struct ctiStruct;
+  
+  // Lambdas for pixel lookup and delta calc
+  
+  auto simpleLookupPixelsL = [pixelPtr] (int offset)->uint32_t {
+    uint32_t pixel;
+    pixel = pixelPtr[offset];
+#if defined(DEBUG)
+    pixel = pixel & 0x00FFFFFF;
+#endif // DEBUG
+    return pixel;
+  };
+  
+  auto simpleDetlaPixelsL = [pixelPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTIPredict2(pixelPtr, fromOffset, toOffset);
+    return delta;
+  };
+  
+  int waitListN = (256*3)+1;
   
   // Call setup to process the upper left pixels
   
   vector<uint32_t> iterOrder;
   
   CTI_Setup(ctiStruct,
-            pixelPtr,
-            nullptr,
-            -1,
-            nullptr,
-            tablePred,
+            simpleLookupPixelsL,
+            simpleDetlaPixelsL,
+            waitListN,
             width, height,
             iterOrder,
             nullptr);
@@ -970,7 +1065,7 @@ void CTI_IteratePixelsInTable(
       1, 1, 0,
     };
     
-    CTI_ProcessFlags(ctiStruct, processed, tablePred);
+    CTI_ProcessFlags(ctiStruct, processed, simpleDetlaPixelsL);
   }
   
   // Prediction for (1,1) has both H and V axis,
@@ -982,7 +1077,7 @@ void CTI_IteratePixelsInTable(
   // (4, 4, 4) -> X -> (4, 4, 4)
   
   predPixel = CTI_NeighborPredict2(ctiStruct,
-                                   tablePred,
+                                   simpleLookupPixelsL,
                                    deltasPtr,
                                    1, 1);
   
@@ -1045,20 +1140,36 @@ void CTI_IteratePixelsInTable(
     deltasPtr[i] = inPredErrors[i];
   }
   
-  const bool tablePred = false;
+  //const bool tablePred = false;
   
   CTI_Struct ctiStruct;
+  
+  // Lambdas for pixel lookup and delta calc
+  
+  auto simpleLookupPixelsL = [pixelPtr] (int offset)->uint32_t {
+    uint32_t pixel;
+    pixel = pixelPtr[offset];
+#if defined(DEBUG)
+    pixel = pixel & 0x00FFFFFF;
+#endif // DEBUG
+    return pixel;
+  };
+  
+  auto simpleDetlaPixelsL = [pixelPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTIPredict2(pixelPtr, fromOffset, toOffset);
+    return delta;
+  };
+  
+  int waitListN = (256*3)+1;
   
   // Call setup to process the upper left pixels
   
   vector<uint32_t> iterOrder;
   
   CTI_Setup(ctiStruct,
-            pixelPtr,
-            nullptr,
-            -1,
-            nullptr,
-            tablePred,
+            simpleLookupPixelsL,
+            simpleDetlaPixelsL,
+            waitListN,
             width, height,
             iterOrder,
             nullptr);
@@ -1074,7 +1185,7 @@ void CTI_IteratePixelsInTable(
       1, 1, 0,
     };
     
-    CTI_ProcessFlags(ctiStruct, processed, tablePred);
+    CTI_ProcessFlags(ctiStruct, processed, simpleDetlaPixelsL);
   }
   
   // Prediction for (1,1) has both H and V axis, but
@@ -1086,7 +1197,7 @@ void CTI_IteratePixelsInTable(
   // (7, 7, 7)
   
   predPixel = CTI_NeighborPredict2(ctiStruct,
-                                   tablePred,
+                                   simpleLookupPixelsL,
                                    deltasPtr,
                                    1, 1);
   

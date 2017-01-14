@@ -177,11 +177,6 @@ public:
   int width;
   int height;
   
-  uint32_t * pixelsPtr;
-  uint32_t * colortablePixelsPtr;
-  int colortableNumPixels;
-  uint8_t * tableOffsetsPtr;
-  
   CTI_Struct()
   {
   }
@@ -349,44 +344,6 @@ public:
     
     return countHSum + countVSum;
   }
-  
-  // Simple pixel lookup, given the offset into the image.
-  
-  uint32_t pixelLookup(
-                  const bool tablePred,
-                  int offset)
-  {
-    uint32_t pixel;
-    if (tablePred) {
-      pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
-    } else {
-      pixel = pixelsPtr[offset];
-    }
-#if defined(DEBUG)
-    pixel = pixel & 0x00FFFFFF;
-#endif // DEBUG
-    return pixel;
-  }
-  
-  // Determine a delta given 2 offsets, can be either H or V
-  
-  int simpleDelta(
-                  const bool tablePred,
-                  int fromOffset,
-                  int toOffset)
-  {
-    int delta;
-    
-    if (tablePred) {
-      //delta = CTITablePredict(tableOffsetsPtr, colortablePixelsPtr, fromOffset, toOffset, otherOffset, colortableNumPixels);
-      delta = CTITablePredict2(tableOffsetsPtr, colortablePixelsPtr, fromOffset, toOffset, colortableNumPixels);
-    } else {
-      //delta = CTIPredict(pixelsPtr, fromOffset, toOffset, otherOffset);
-      delta = CTIPredict2(pixelsPtr, fromOffset, toOffset);
-    }
-    
-    return delta;
-  }
 
   // Calculate delta between 2 pixels
 
@@ -417,8 +374,9 @@ public:
 
   // Update cached delta values, this method is invoked after a pixel has been processed
   
+  template<typename DeltaFunc>
   void updateCache(
-                   const bool tablePred,
+                   DeltaFunc deltaFunc,
                    const int cacheCol,
                    const int cacheRow)
   {
@@ -468,7 +426,7 @@ public:
         //bool pixelWasProcessed = wasProcessed(prevCol, cacheRow);
         bool pixelWasProcessed = wasProcessed(leftOffset);
         if (pixelWasProcessed) {
-          int delta = simpleDelta(tablePred, leftOffset, centerOffset);
+          int delta = deltaFunc(leftOffset, centerOffset);
           
 #if defined(DEBUG)
           assert(delta < 0xFFFF);
@@ -507,7 +465,7 @@ public:
         //bool pixelWasProcessed = wasProcessed(nextCol, cacheRow);
         bool pixelWasProcessed = wasProcessed(rightOffset);
         if (pixelWasProcessed) {
-          int delta = simpleDelta(tablePred, centerOffset, rightOffset);
+          int delta = deltaFunc(centerOffset, rightOffset);
           
 #if defined(DEBUG)
           assert(delta < 0xFFFF);
@@ -551,7 +509,7 @@ public:
         //bool pixelWasProcessed = wasProcessed(cacheCol, prevRow);
         bool pixelWasProcessed = wasProcessed(upOffset);
         if (pixelWasProcessed) {
-          int delta = simpleDelta(tablePred, upOffset, centerOffset);
+          int delta = deltaFunc(upOffset, centerOffset);
           
 #if defined(DEBUG)
           assert(delta < 0xFFFF);
@@ -594,7 +552,7 @@ public:
         //bool pixelWasProcessed = wasProcessed(cacheCol, nextRow);
         bool pixelWasProcessed = wasProcessed(downOffset);
         if (pixelWasProcessed) {
-          int delta = simpleDelta(tablePred, centerOffset, downOffset);
+          int delta = deltaFunc(centerOffset, downOffset);
           
 #if defined(DEBUG)
           assert(delta < 0xFFFF);
@@ -665,22 +623,19 @@ public:
 
 // Predict a RGB value by looking only at the direct 4 neighbor pixels (N S E W)
 
+template<typename LookupFunc>
 static inline
 //static __attribute__ ((noinline))
 uint32_t CTI_NeighborPredict(
-                         CTI_Struct & ctiStruct,
-                         const bool tablePred,
-                         int centerX,
-                         int centerY)
+                             CTI_Struct & ctiStruct,
+                             LookupFunc lookupFunc,
+                             int centerX,
+                             int centerY)
 {
   const bool debug = false;
   
   const int width = ctiStruct.width;
   const int height = ctiStruct.height;
-  
-  const uint32_t * const pixelsPtr = ctiStruct.pixelsPtr;
-  const uint32_t * const colortablePixelsPtr = ctiStruct.colortablePixelsPtr;
-  const uint8_t * const tableOffsetsPtr = ctiStruct.tableOffsetsPtr;
   
   if (debug) {
     printf("CTI_NeighborPredict(%d,%d)\n", centerX, centerY);
@@ -724,12 +679,7 @@ uint32_t CTI_NeighborPredict(
     if (pixelWasProcessed) {
       int offset = centerOffset - width;
       
-      uint32_t pixel;
-      if (tablePred) {
-        pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
-      } else {
-        pixel = pixelsPtr[offset];
-      }
+      uint32_t pixel = lookupFunc(offset);
       
       if (debug) {
         printf("U pixel (%4d,%4d) = 0x%08X\n", col, row, pixel);
@@ -761,12 +711,7 @@ uint32_t CTI_NeighborPredict(
     if (pixelWasProcessed) {
       int offset = centerOffset - 1;
       
-      uint32_t pixel;
-      if (tablePred) {
-        pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
-      } else {
-        pixel = pixelsPtr[offset];
-      }
+      uint32_t pixel = lookupFunc(offset);
       
       if (debug) {
         printf("L pixel (%4d,%4d) = 0x%08X\n", col, row, pixel);
@@ -798,12 +743,7 @@ uint32_t CTI_NeighborPredict(
     if (pixelWasProcessed) {
       int offset = centerOffset + 1;
       
-      uint32_t pixel;
-      if (tablePred) {
-        pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
-      } else {
-        pixel = pixelsPtr[offset];
-      }
+      uint32_t pixel = lookupFunc(offset);
       
       if (debug) {
         printf("R pixel (%4d,%4d) = 0x%08X\n", col, row, pixel);
@@ -835,12 +775,7 @@ uint32_t CTI_NeighborPredict(
     if (pixelWasProcessed) {
       int offset = centerOffset + width;
       
-      uint32_t pixel;
-      if (tablePred) {
-        pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
-      } else {
-        pixel = pixelsPtr[offset];
-      }
+      uint32_t pixel = lookupFunc(offset);
       
       if (debug) {
         printf("D pixel (%4d,%4d) = 0x%08X\n", col, row, pixel);
@@ -930,11 +865,12 @@ uint32_t CTI_NeighborPredict(
 // Predict a RGB value by looking at the direct 4 neighbor pixels (N S E W)
 // and the pred errors for these pixels
 
+template<typename LookupFunc>
 static inline
 //static __attribute__ ((noinline))
 uint32_t CTI_NeighborPredict2(
                               CTI_Struct & ctiStruct,
-                              const bool tablePred,
+                              LookupFunc lookupFunc,
                               uint32_t * const predErrPtr,
                               int centerX,
                               int centerY)
@@ -1103,35 +1039,35 @@ uint32_t CTI_NeighborPredict2(
       unsigned int pUL = 0xFFFFFFFF, pU = 0xFFFFFFFF, pUR = 0xFFFFFFFF, pL = 0xFFFFFFFF, pR = 0xFFFFFFFF, pDL = 0xFFFFFFFF, pD = 0xFFFFFFFF, pDR = 0xFFFFFFFF;
       
       if (nBits.UL) {
-      pUL = ctiStruct.pixelLookup(tablePred, centerOffset - width - 1);
+      pUL = lookupFunc(centerOffset - width - 1);
       }
 
       if (nBits.U) {
-      pU = ctiStruct.pixelLookup(tablePred, centerOffset - width);
+      pU = lookupFunc(centerOffset - width);
       }
       
       if (nBits.UR) {
-      pUR = ctiStruct.pixelLookup(tablePred, centerOffset - width + 1);
+      pUR = lookupFunc(centerOffset - width + 1);
       }
       
       if (nBits.L) {
-      pL = ctiStruct.pixelLookup(tablePred, centerOffset - 1);
+      pL = lookupFunc(centerOffset - 1);
       }
 
       if (nBits.R) {
-      pR = ctiStruct.pixelLookup(tablePred, centerOffset + 1);
+      pR = lookupFunc(centerOffset + 1);
       }
       
       if (nBits.DL) {
-      pDL = ctiStruct.pixelLookup(tablePred, centerOffset + width - 1);
+      pDL = lookupFunc(centerOffset + width - 1);
       }
       
       if (nBits.D) {
-      pD = ctiStruct.pixelLookup(tablePred, centerOffset + width);
+      pD = lookupFunc(centerOffset + width);
       }
       
       if (nBits.DR) {
-      pDR = ctiStruct.pixelLookup(tablePred, centerOffset + width + 1);
+      pDR = lookupFunc(centerOffset + width + 1);
       }
       
       printf("0x%08X 0x%08X 0x%08X\n", pUL, pU, pUR);
@@ -1308,10 +1244,10 @@ uint32_t CTI_NeighborPredict2(
   if (hasH && hasV) {
     // Compute the delta between L and R and choose component ave that is the smallest
 
-    unsigned int pU = ctiStruct.pixelLookup(tablePred, centerOffset - width);
-    unsigned int pL = ctiStruct.pixelLookup(tablePred, centerOffset - 1);
-    unsigned int pR = ctiStruct.pixelLookup(tablePred, centerOffset + 1);
-    unsigned int pD = ctiStruct.pixelLookup(tablePred, centerOffset + width);
+    unsigned int pU = lookupFunc(centerOffset - width);
+    unsigned int pL = lookupFunc(centerOffset - 1);
+    unsigned int pR = lookupFunc(centerOffset + 1);
+    unsigned int pD = lookupFunc(centerOffset + width);
 
     if (debug) {
       printf("L -> R : 0x%08X -> 0x%08X\n", pL, pR);
@@ -1332,8 +1268,8 @@ uint32_t CTI_NeighborPredict2(
   } else if (hasH) {
     // H
     
-    unsigned int pL = ctiStruct.pixelLookup(tablePred, centerOffset - 1);
-    unsigned int pR = ctiStruct.pixelLookup(tablePred, centerOffset + 1);
+    unsigned int pL = lookupFunc(centerOffset - 1);
+    unsigned int pR = lookupFunc(centerOffset + 1);
     
     if (debug) {
       printf("L -> R : 0x%08X -> 0x%08X\n", pL, pR);
@@ -1351,8 +1287,8 @@ uint32_t CTI_NeighborPredict2(
   } else if (hasV) {
     // V
     
-    unsigned int pU = ctiStruct.pixelLookup(tablePred, centerOffset - width);
-    unsigned int pD = ctiStruct.pixelLookup(tablePred, centerOffset + width);
+    unsigned int pU = lookupFunc(centerOffset - width);
+    unsigned int pD = lookupFunc(centerOffset + width);
     
     if (debug) {
       printf("U -> D : 0x%08X -> 0x%08X\n", pU, pD);
@@ -1374,9 +1310,9 @@ uint32_t CTI_NeighborPredict2(
     // 0  X ?
     // ?  ? ?
     
-    unsigned int pUL = ctiStruct.pixelLookup(tablePred, centerOffset - width - 1);
-    unsigned int pU = ctiStruct.pixelLookup(tablePred, centerOffset - width);
-    unsigned int pL = ctiStruct.pixelLookup(tablePred, centerOffset - 1);
+    unsigned int pUL = lookupFunc(centerOffset - width - 1);
+    unsigned int pU = lookupFunc(centerOffset - width);
+    unsigned int pL = lookupFunc(centerOffset - 1);
     
     uint32_t samples[4];
     
@@ -1405,9 +1341,9 @@ uint32_t CTI_NeighborPredict2(
     // 0  X ?
     // 0 10 ?
     
-    unsigned int pL = ctiStruct.pixelLookup(tablePred, centerOffset - 1);
-    unsigned int pDL = ctiStruct.pixelLookup(tablePred, centerOffset + width - 1);
-    unsigned int pD = ctiStruct.pixelLookup(tablePred, centerOffset + width);
+    unsigned int pL = lookupFunc(centerOffset - 1);
+    unsigned int pDL = lookupFunc(centerOffset + width - 1);
+    unsigned int pD = lookupFunc(centerOffset + width);
     
     uint32_t samples[4];
     
@@ -1440,9 +1376,9 @@ uint32_t CTI_NeighborPredict2(
     // ?  X 10
     // ?  ?  ?
     
-    unsigned int pU = ctiStruct.pixelLookup(tablePred, centerOffset - width);
-    unsigned int pUR = ctiStruct.pixelLookup(tablePred, centerOffset - width + 1);
-    unsigned int pR = ctiStruct.pixelLookup(tablePred, centerOffset + 1);
+    unsigned int pU = lookupFunc(centerOffset - width);
+    unsigned int pUR = lookupFunc(centerOffset - width + 1);
+    unsigned int pR = lookupFunc(centerOffset + 1);
     
     uint32_t samples[4];
     
@@ -1475,9 +1411,9 @@ uint32_t CTI_NeighborPredict2(
     // ?  X 10
     // ?  0  0
     
-    unsigned int pR = ctiStruct.pixelLookup(tablePred, centerOffset + 1);
-    unsigned int pD = ctiStruct.pixelLookup(tablePred, centerOffset + width);
-    unsigned int pDR = ctiStruct.pixelLookup(tablePred, centerOffset + width + 1);
+    unsigned int pR = lookupFunc(centerOffset + 1);
+    unsigned int pD = lookupFunc(centerOffset + width);
+    unsigned int pDR = lookupFunc(centerOffset + width + 1);
     
     uint32_t samples[4];
     
@@ -1516,7 +1452,7 @@ uint32_t CTI_NeighborPredict2(
     if (nBits.U) {
       int offset = centerOffset - width;
       
-      uint32_t pixel = ctiStruct.pixelLookup(tablePred, offset);
+      uint32_t pixel = lookupFunc(offset);
       
       uint32_t B = pixel & 0xFF;
       uint32_t G = (pixel >> 8) & 0xFF;
@@ -1533,7 +1469,7 @@ uint32_t CTI_NeighborPredict2(
     
     if (nBits.L) {
       int offset = centerOffset - 1;
-      uint32_t pixel = ctiStruct.pixelLookup(tablePred, offset);
+      uint32_t pixel = lookupFunc(offset);
       
       uint32_t B = pixel & 0xFF;
       uint32_t G = (pixel >> 8) & 0xFF;
@@ -1551,7 +1487,7 @@ uint32_t CTI_NeighborPredict2(
     if (nBits.R) {
       int offset = centerOffset + 1;
       
-      uint32_t pixel = ctiStruct.pixelLookup(tablePred, offset);
+      uint32_t pixel = lookupFunc(offset);
       
       uint32_t B = pixel & 0xFF;
       uint32_t G = (pixel >> 8) & 0xFF;
@@ -1569,7 +1505,7 @@ uint32_t CTI_NeighborPredict2(
     if (nBits.D) {
       int offset = centerOffset + width;
       
-      uint32_t pixel = ctiStruct.pixelLookup(tablePred, offset);
+      uint32_t pixel = lookupFunc(offset);
       
       uint32_t B = pixel & 0xFF;
       uint32_t G = (pixel >> 8) & 0xFF;
@@ -2009,11 +1945,12 @@ unsigned int CTI_BoxDeltaSum(
 // Predict in a horizontal 3x5 box around the unknown pixel
 // by reading from neighbors and generating a weighted average.
 
+template<typename DeltaFunc>
 static inline
 //static __attribute__ ((noinline))
 unsigned int CTI_BoxDeltaPredictH(
                                   CTI_Struct & ctiStruct,
-                                  const bool tablePred,
+                                  DeltaFunc deltaFunc,
                                   int centerX,
                                   int centerY)
 {
@@ -2359,7 +2296,7 @@ unsigned int CTI_BoxDeltaPredictH(
 //            printf("H delta offsets %d -> %d\n", offset1, offset2);
 //          }
           
-          int delta = ctiStruct.simpleDelta(tablePred, offset1, offset2);
+          int delta = deltaFunc(offset1, offset2);
           
           assert(delta == cachedVal);
         }
@@ -2508,11 +2445,12 @@ unsigned int CTI_BoxDeltaPredictH(
 // Predict in a horizontal 5x3 box around the unknown pixel
 // by reading from neighbors and generating a weighted average.
 
+template<typename DeltaFunc>
 static inline
 //static __attribute__ ((noinline))
 unsigned int CTI_BoxDeltaPredictV(
                                   CTI_Struct & ctiStruct,
-                                  const bool tablePred,
+                                  DeltaFunc deltaFunc,
                                   int centerX,
                                   int centerY)
 {
@@ -2861,7 +2799,7 @@ unsigned int CTI_BoxDeltaPredictV(
           int offset1 = CTIOffset2d(col, row, regionWidth);
           int offset2 = CTIOffset2d(col, row+1, regionWidth);
           
-          int delta = ctiStruct.simpleDelta(tablePred, offset1, offset2);
+          int delta = deltaFunc(offset1, offset2);
           
           assert(delta == cachedVal);
         }
@@ -3003,10 +2941,11 @@ unsigned int CTI_BoxDeltaPredictV(
 
 // Find the minimum delta in the horizontal or vertical trees
 
+template<typename DeltaFunc>
 static inline
 void CTI_MinimumSearch(
                        CTI_Struct & ctiStruct,
-                       const bool tablePred,
+                       DeltaFunc deltaFunc,
                        CoordDelta *smallestPtr)
 {
   const bool debug = false;
@@ -3137,7 +3076,7 @@ void CTI_MinimumSearch(
 #endif // DEBUG
 
         nDelta = CTI_BoxDeltaPredictH(ctiStruct,
-                                 tablePred,
+                                 deltaFunc,
                                  toX + 1,
                                  toY);
       } else {
@@ -3146,7 +3085,7 @@ void CTI_MinimumSearch(
 #endif // DEBUG
         
         nDelta = CTI_BoxDeltaPredictV(ctiStruct,
-                                 tablePred,
+                                 deltaFunc,
                                  toX,
                                  toY + 1);
       }
@@ -3212,9 +3151,10 @@ void CTI_MinimumSearch(
 // One step of the iteration logic, each step will lookup
 // the min delta and then process that min delta.
 
-static inline
+template<typename LookupFunc, typename DeltaFunc>
 bool CTI_IterateStep(CTI_Struct & ctiStruct,
-                     const bool tablePred,
+                     LookupFunc lookupFunc,
+                     DeltaFunc deltaFunc,
                      vector<uint32_t> & iterOrder,
                      uint32_t * const deltasPtr)
 {
@@ -3245,7 +3185,7 @@ bool CTI_IterateStep(CTI_Struct & ctiStruct,
   CoordDelta minDelta;
   
   CTI_MinimumSearch(ctiStruct,
-                    tablePred,
+                    deltaFunc,
                     &minDelta);
   
   if (minDelta.isEmpty()) {
@@ -3322,11 +3262,11 @@ bool CTI_IterateStep(CTI_Struct & ctiStruct,
       
       {
         uint32_t predPixel = CTI_NeighborPredict2(ctiStruct,
-                                                 tablePred,
+                                                 lookupFunc,
                                                   deltasPtr,
                                                  col, row);
         
-        uint32_t actualPixel = ctiStruct.pixelLookup(tablePred, nextIterOffset);
+        uint32_t actualPixel = lookupFunc(nextIterOffset);
         
         // Generate actual prediction delta by reading the actual pixel value
         // at the offset being predicted and then generating a delta between the
@@ -3403,7 +3343,7 @@ bool CTI_IterateStep(CTI_Struct & ctiStruct,
       // a delta pixel based on the prediction. This prevents a delta update from
       // accidently being included in the prediction.
       
-      ctiStruct.updateCache(tablePred, cacheCol, cacheRow);
+      ctiStruct.updateCache(deltaFunc, cacheCol, cacheRow);
       
 # if defined(BOX_DELTA_SUM_WITH_CACHE)
       ctiStruct.invalidateRowCache(
@@ -3501,7 +3441,7 @@ bool CTI_IterateStep(CTI_Struct & ctiStruct,
         int predY = toY + 1;
         
         int delta = CTI_BoxDeltaPredictV(ctiStruct,
-                                    tablePred,
+                                    deltaFunc,
                                     cacheCol,
                                     predY);
         
@@ -3581,7 +3521,7 @@ bool CTI_IterateStep(CTI_Struct & ctiStruct,
         // In the case where pixel otherOffset has not been set yet, ignore in delta calc
         
         int delta = CTI_BoxDeltaPredictH(ctiStruct,
-                                    tablePred,
+                                    deltaFunc,
                                     predX,
                                     cacheRow);
         
@@ -3610,12 +3550,11 @@ bool CTI_IterateStep(CTI_Struct & ctiStruct,
 // is needed is to create cached delta values for the 4 pixels. Note that these
 // cached values will not be invalidated since they only reference each other.
 
+template<typename LookupFunc, typename DeltaFunc>
 static inline
-void CTI_InitBlock(const uint32_t * const pixelsPtr,
-                   const uint32_t * const colortablePixelsPtr,
-                   const int colortableNumPixels,
-                   const uint8_t * const tableOffsetsPtr,
-                   const bool tablePred,
+void CTI_InitBlock(
+                   LookupFunc lookupFunc,
+                   DeltaFunc deltaFunc,
                    const int regionWidth,
                    const int regionHeight,
                    CTI_Struct & ctiStruct,
@@ -3688,7 +3627,7 @@ void CTI_InitBlock(const uint32_t * const pixelsPtr,
               printf("uncached horizontal line (%d,%d) -> (%d,%d) : (%d -> %d)\n", fromX, y, toX, y, fromOffset, toOffset);
             }
             
-            delta = ctiStruct.simpleDelta(tablePred, fromOffset, toOffset);
+            delta = deltaFunc(fromOffset, toOffset);
             
             if (debug) {
               printf("delta (%d,%d) -> (%d,%d) : %d\n", fromX, y, toX, y, delta);
@@ -3753,7 +3692,7 @@ void CTI_InitBlock(const uint32_t * const pixelsPtr,
               printf("uncached vertical line (%d,%d) -> (%d,%d) : (%d -> %d)\n", x, fromY, x, toY, fromOffset, toOffset);
             }
                         
-            delta = ctiStruct.simpleDelta(tablePred, fromOffset, toOffset);
+            delta = deltaFunc(fromOffset, toOffset);
             
             if (debug) {
               printf("delta (%d,%d) -> (%d,%d) : %d\n", x, fromY, x, toY, delta);
@@ -3813,20 +3752,15 @@ void CTI_InitBlock(const uint32_t * const pixelsPtr,
     int x = pair.first;
     int y = pair.second;
   
-    ctiStruct.updateCache(tablePred, x, y);
+    ctiStruct.updateCache(deltaFunc, x, y);
     
     int fromOffset = CTIOffset2d(x, y, ctiStruct.width);
     iterOrder.push_back(fromOffset);
     ctiStruct.setProcessed(x, y);
     
-    if (deltasPtr && !tablePred) {
+    if (deltasPtr) {
       // Emit upper 4 corner pixels directly without a delta
-      deltasPtr[fromOffset] = pixelsPtr[fromOffset];
-    } else if (deltasPtr && tablePred) {
-      // FIXME: in table pred mode, does this emit logic write table offsets?
-      
-      // Emit upper 4 corner pixels directly without a delta
-      deltasPtr[fromOffset] = colortablePixelsPtr[tableOffsetsPtr[fromOffset]];
+      deltasPtr[fromOffset] = lookupFunc(fromOffset);
     }
   }
   
@@ -3840,13 +3774,12 @@ void CTI_InitBlock(const uint32_t * const pixelsPtr,
 // Fill in memory associated with a CTI_Struct for
 // a given width and height.
 
+template<typename LookupFunc, typename DeltaFunc>
 static inline
 void CTI_Setup(CTI_Struct & ctiStruct,
-               const uint32_t * const pixelsPtr,
-               const uint32_t * const colortablePixelsPtr,
-               const int colortableNumPixels,
-               const uint8_t * const tableOffsetsPtr,
-               const bool tablePred,
+               LookupFunc lookupFunc,
+               DeltaFunc deltaFunc,
+               int waitListN,
                const int width,
                const int height,
                vector<uint32_t> & iterOrder,
@@ -3862,13 +3795,6 @@ void CTI_Setup(CTI_Struct & ctiStruct,
   const int regionNumPixels = width * height;
   assert(regionNumPixels > 0);
   
-  // Copy parameters
-  
-  ctiStruct.pixelsPtr = (uint32_t*) pixelsPtr;
-  ctiStruct.colortablePixelsPtr = (uint32_t*) colortablePixelsPtr;
-  ctiStruct.colortableNumPixels = colortableNumPixels;
-  ctiStruct.tableOffsetsPtr = (uint8_t*)tableOffsetsPtr;
-
   ctiStruct.width = width;
   ctiStruct.height = height;
   
@@ -3879,17 +3805,8 @@ void CTI_Setup(CTI_Struct & ctiStruct,
   }
   iterOrder.clear();
   
-  // The core data structures are a tree for O(logN) access to the smallest delta
-  // and an array of iterator to support O(1) access to the cached delta for a
-  // given row or column.
   
-  if (tablePred) {
-    // Max table size is one byte
-    ctiStruct.initWaitList(255+1);
-  } else {
-    // 3 * byte deltas
-    ctiStruct.initWaitList(255+255+255+1);
-  }
+  ctiStruct.initWaitList(waitListN);
   
   // Init deltas so that for a width of N there are (N-1)
   // deltas. The delta at offset 0 corresponds to the
@@ -3920,11 +3837,9 @@ void CTI_Setup(CTI_Struct & ctiStruct,
     }
   }
   
-  CTI_InitBlock(pixelsPtr,
-                colortablePixelsPtr,
-                colortableNumPixels,
-                tableOffsetsPtr,
-                tablePred,
+  CTI_InitBlock(
+                lookupFunc,
+                deltaFunc,
                 width, height,
                 ctiStruct,
                 iterOrder,
@@ -3956,28 +3871,86 @@ void CTI_Iterate(
     printf("CTI_Iterate\n");
   }
   
+  // User supplied lambda functions which do pixel lookup and delta calc for different knds of input
+
+  auto simpleLookupTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int offset)->uint32_t {
+    uint32_t pixel = colortablePixelsPtr[tableOffsetsPtr[offset]];
+    return pixel;
+  };
+  
+  auto simpleLookupPixelsL = [pixelsPtr] (int offset)->uint32_t {
+    uint32_t pixel;
+    pixel = pixelsPtr[offset];
+#if defined(DEBUG)
+    pixel = pixel & 0x00FFFFFF;
+#endif // DEBUG
+    return pixel;
+  };
+  
+  auto simpleDetlaTableL = [colortablePixelsPtr, colortableNumPixels, tableOffsetsPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTITablePredict2(tableOffsetsPtr, colortablePixelsPtr, fromOffset, toOffset, colortableNumPixels);
+    return delta;
+  };
+  
+  auto simpleDetlaPixelsL = [pixelsPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTIPredict2(pixelsPtr, fromOffset, toOffset);
+    return delta;
+  };
+  
   CTI_Struct ctiStruct;
   
-  CTI_Setup(ctiStruct,
-            pixelsPtr,
-            colortablePixelsPtr,
-            colortableNumPixels,
-            tableOffsetsPtr,
-            tablePred,
-            width,
-            height,
-            iterOrder,
-            deltasPtr);
+  // The core data structure is a prio stack with statically defined linked list nodes
+  // so that O(1) access to the element with the smallest prio value is
+  // always available.
+
+  int waitListN;
+  
+  if (tablePred) {
+    // Max table size is one byte
+    waitListN = (255+1);
+  } else {
+    // 3 * byte deltas
+    waitListN = (255+255+255+1);
+  }
+  
+  if (tablePred) {
+    CTI_Setup(ctiStruct,
+              simpleLookupTableL,
+              simpleDetlaTableL,
+              waitListN,
+              width,
+              height,
+              iterOrder,
+              deltasPtr);
+  } else {
+    CTI_Setup(ctiStruct,
+              simpleLookupPixelsL,
+              simpleDetlaPixelsL,
+              waitListN,
+              width,
+              height,
+              iterOrder,
+              deltasPtr);
+  }
   
   // Iterate over all remaining pixels based on min cost huristic
   
   bool hasMoreDeltas;
   
   while (1) {
-    hasMoreDeltas = CTI_IterateStep(ctiStruct,
-                                    tablePred,
-                                    iterOrder,
-                                    deltasPtr);
+    if (tablePred) {
+      hasMoreDeltas = CTI_IterateStep(ctiStruct,
+                                      simpleLookupTableL,
+                                      simpleDetlaTableL,
+                                      iterOrder,
+                                      deltasPtr);
+    } else {
+      hasMoreDeltas = CTI_IterateStep(ctiStruct,
+                                      simpleLookupPixelsL,
+                                      simpleDetlaPixelsL,
+                                      iterOrder,
+                                      deltasPtr);
+    }
     
     if (!hasMoreDeltas) {
       break;
@@ -4034,10 +4007,11 @@ void CTI_Iterate(
 // of the original 4 pixels in the upper left corner will be touched
 // and that the normal init logic has been executed.
 
+template<typename DeltaFunc>
 static inline
 void CTI_ProcessFlags(CTI_Struct & ctiStruct,
                       uint8_t *flagsPtr,
-                      const bool tablePred)
+                      DeltaFunc deltaFunc)
 {
   int width = ctiStruct.width;
   int height = ctiStruct.height;
@@ -4055,7 +4029,7 @@ void CTI_ProcessFlags(CTI_Struct & ctiStruct,
       if (flagsPtr[offset]) {
         assert(ctiStruct.processedFlags[offset] == 0);
         ctiStruct.processedFlags[offset] = 1;
-        ctiStruct.updateCache(tablePred, x, y);
+        ctiStruct.updateCache(deltaFunc, x, y);
       } else {
         assert(ctiStruct.processedFlags[offset] == 0);
       }

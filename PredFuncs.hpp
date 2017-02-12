@@ -585,6 +585,56 @@ int CTIPredict(const uint32_t * const pixelsPtr, int o1, int o2, int o3) {
   }
 }
 
+// Simple grayscale delta of 2 grayscale values : abs(dV)
+
+static inline
+int CTIGrayDelta(const uint8_t * const grayPtr, int o1, int o2) {
+  const bool debug = false;
+  
+  if (debug) {
+    printf("CTIGrayDelta %d %d\n", o1, o2);
+  }
+  
+#if defined(DEBUG)
+  assert(o1 != o2);
+#endif // DEBUG
+  
+  // Lookup color table offset at o1 and o2
+  
+  int p1 = grayPtr[o1];
+  int p2 = grayPtr[o2];
+  
+  if (debug) {
+    printf("image offset %2d -> %3d\n", o1, p1);
+    printf("image offset %2d -> %3d\n", o2, p2);
+  }
+  
+  if (p1 == p2) {
+    if (debug) {
+      printf("comp delta is ZERO special case for 2x duplicate pixel 0x%08X\n", p1);
+    }
+    
+    return 0;
+  }
+  
+  if (debug) {
+    printf("image offset %2d -> 0x%08X\n", o1, p1);
+    printf("image offset %2d -> 0x%08X\n", o2, p2);
+  }
+  
+  if (debug) {
+    printf("predict(%2d,%2d) : 0x%08X -> 0x%08X\n", o1, o2, p1, p2);
+  }
+
+  int delta = abs(p2 - p1);
+  
+  if (debug) {
+    printf("delta = %d : %d - %d\n", delta, p2, p1);
+  }
+  
+  return delta;
+}
+
 // Table prediciton with 2 values along same axis
 
 static inline

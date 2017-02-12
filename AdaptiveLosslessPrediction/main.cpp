@@ -35,7 +35,7 @@ static
 void dump_rgb(int width, int height, int hasAlpha, uint32_t * pixelsPtr, char *filename);
 
 static
-void dump_grayscale(int width, int height, uint8_t * offsetsPtr);
+void dump_grayscale(int width, int height, uint8_t * offsetsPtr, char * filename);
 
 static
 void dump_colortable(int hasAlpha, uint32_t * colortablePtr, int numColors);
@@ -55,17 +55,51 @@ process_file(PngContext *cxt)
   unordered_map<uint32_t, uint32_t> histogram;
   
   if (enable256) {
-    
-    for (int i = 0; i < inputImageNumPixels; i++) {
-      uint32_t pixel = cxt->pixels[i];
-      histogram[pixel] += 1;
-    }
-    
+  
+  for (int i = 0; i < inputImageNumPixels; i++) {
+    uint32_t pixel = cxt->pixels[i];
+    histogram[pixel] += 1;
   }
   
+  }
+    
   int numUniquePixels = (int) histogram.size();
   
   printf("scanned  %d unique pixels in input image\n", numUniquePixels);
+  
+  // Grayscale input checking
+  
+  bool checkGrayscale = true;
+  bool isGrayscale = false;
+  
+  if (checkGrayscale) {
+    isGrayscale = true;
+
+    // Note that reading (cxt->color_type == PNG_COLOR_TYPE_GRAY) is not
+    // processing byte input properly. Need to convert to RGB that contains grayscale.
+    
+    // This check does not work for grayscale PNG input
+//    if (cxt->color_type == PNG_COLOR_TYPE_GRAY) {
+//      isGrayscale = true;
+//    }
+
+    for (int i = 0; i < inputImageNumPixels; i++) {
+      uint32_t pixel = cxt->pixels[i];
+      
+      uint32_t B = pixel & 0xFF;
+      uint32_t G = (pixel >> 8) & 0xFF;
+      uint32_t R = (pixel >> 16) & 0xFF;
+      
+//      printf("pixels[%5d] = 0x%08X\n", i, pixel);
+      
+      if (B == G && B == R) {
+        // pixel is grayscale
+      } else {
+        isGrayscale = false;
+        break;
+      }
+    }
+  }
   
   // Generate 8 bit offsets table that will be used to lookup table deltas
   
@@ -106,7 +140,7 @@ process_file(PngContext *cxt)
     
     // Dump indexes output
     
-    dump_grayscale(cxt->width, cxt->height, colortableOffsets);
+    dump_grayscale(cxt->width, cxt->height, colortableOffsets, (char*)"iter_grayscale.png");
     
     // Colortable
     
@@ -129,9 +163,38 @@ process_file(PngContext *cxt)
   
   vector<uint32_t> iterOrder;
   
-  const int numIterationLoops = 1;
+  const int numIterationLoops = 10;
   
-  if (enable256 && numUniquePixels <= 256) {
+  if (isGrayscale) {
+    uint8_t *grayscaleBytes = new uint8_t[inputImageNumPixels]();
+    
+    for (int i = 0; i < inputImageNumPixels; i++) {
+      uint32_t pixel = cxt->pixels[i];
+
+      //printf("pixels[%5d] = 0x%08X\n", i, pixel);
+      
+      uint32_t B = pixel & 0xFF;
+      grayscaleBytes[i] = B;
+    }
+    
+    // Dump indexes output
+    
+    dump_grayscale(cxt->width, cxt->height, grayscaleBytes, (char*)"in_grayscale_bytes.png");
+
+    startT = start_timer();
+    
+    for (int i = 0; i < numIterationLoops; i++)
+    {
+      CTI_IterateGray(grayscaleBytes,
+                      cxt->width, cxt->height,
+                      iterOrder,
+                      nullptr);
+    }
+    
+    elapsed = stop_timer(startT);
+    
+    delete [] grayscaleBytes;
+  } else if (enable256 && numUniquePixels <= 256) {
     // 1 component colortable index processing
     
     startT = start_timer();
@@ -144,6 +207,7 @@ process_file(PngContext *cxt)
                   colortableOffsets,
                   cxt->width, cxt->height,
                   iterOrder);
+      
     }
     
     elapsed = stop_timer(startT);
@@ -164,9 +228,10 @@ process_file(PngContext *cxt)
     for (int i = 0; i < numIterationLoops; i++)
     {
       CTI_IterateRGB(cxt->pixels,
-                     cxt->width, cxt->height,
-                     iterOrder,
-                     deltasPtr);
+                  cxt->width, cxt->height,
+                  iterOrder,
+                  deltasPtr);
+      
     }
     
     elapsed = stop_timer(startT);
@@ -200,39 +265,39 @@ process_file(PngContext *cxt)
     }
     
     if (genDeltas) {
-      // Out = Pred = orig + err
-      
-      // Write over the first 4 pixels in upper left to simplify
-      // delta calculations
-      
-      uint32_t *predPixelsPtr = new uint32_t[inputImageNumPixels]();
-      
-      for (int i = 0; i < inputImageNumPixels; i++)
-      {
-        if (i == 0 || i == 1 || (i == cxt->width) || (i == cxt->width+1)) {
-          // Skip abs and emit zero in the upper left corner pixels case
-          predPixelsPtr[i] = deltasPtr[i];
-        } else {
-          uint32_t origPixel = cxt->pixels[i];
-          uint32_t deltaPixel = deltasPtr[i];
-          uint32_t predPixel = pixel_component_sum(origPixel, deltaPixel, 3);
-          predPixelsPtr[i] = predPixel;
-        }
+    // Out = Pred = orig + err
+    
+    // Write over the first 4 pixels in upper left to simplify
+    // delta calculations
+
+    uint32_t *predPixelsPtr = new uint32_t[inputImageNumPixels]();
+    
+    for (int i = 0; i < inputImageNumPixels; i++)
+    {
+      if (i == 0 || i == 1 || (i == cxt->width) || (i == cxt->width+1)) {
+        // Skip abs and emit zero in the upper left corner pixels case
+        predPixelsPtr[i] = deltasPtr[i];
+      } else {
+        uint32_t origPixel = cxt->pixels[i];
+        uint32_t deltaPixel = deltasPtr[i];
+        uint32_t predPixel = pixel_component_sum(origPixel, deltaPixel, 3);
+        predPixelsPtr[i] = predPixel;
       }
+    }
+    
+    // Calculate abs and mean err
+    
+    if ((genDeltas)) {
+      double cMAE = calc_combined_mean_abs_error(inputImageNumPixels, cxt->pixels, predPixelsPtr);
       
-      // Calculate abs and mean err
+      fprintf(stdout, "combined MAE %0.8f\n", cMAE);
       
-      if ((genDeltas)) {
-        double cMAE = calc_combined_mean_abs_error(inputImageNumPixels, cxt->pixels, predPixelsPtr);
-        
-        fprintf(stdout, "combined MAE %0.8f\n", cMAE);
-        
-        double cMSE = calc_combined_mean_sqr_error(inputImageNumPixels, cxt->pixels, predPixelsPtr);
-        
-        fprintf(stdout, "combined MSE %0.8f\n", cMSE);
-      }
+      double cMSE = calc_combined_mean_sqr_error(inputImageNumPixels, cxt->pixels, predPixelsPtr);
       
-      delete [] predPixelsPtr;
+      fprintf(stdout, "combined MSE %0.8f\n", cMSE);
+    }
+
+    delete [] predPixelsPtr;
     }
   }
   
@@ -259,7 +324,7 @@ process_file(PngContext *cxt)
     
     delete [] iterOrderedPixels;
   }
-  
+
   if (deltasPtr) {
     uint32_t *iterOrderedPixels = new uint32_t[inputImageNumPixels]();
     
@@ -293,20 +358,18 @@ process_file(PngContext *cxt)
   
   // Dump iteration step images
   
-  if ((0)) {
+  if ((1)) {
     int iterStepPtr = 0;
     
-    const int stepSize = 3000;
-    
     for ( int i = 0 ; i < inputImageNumPixels; i++ ) {
-      if ((i % stepSize) == 0 || (i == (inputImageNumPixels-2))) {
+      if ((i % 1000) == 0) {
         dump_iter_n(cxt->width, cxt->height, cxt->hasAlpha, cxt->pixels, iterOrder, &iterStepPtr);
       } else {
         iterStepPtr += 1;
       }
     }
   }
-  
+
   // Huge 4K steps
   
   if ((0)) {
@@ -352,7 +415,7 @@ process_file(PngContext *cxt)
     if (genDeltas) {
       deltasPtr = new uint32_t[inputImageNumPixels]();
     }
-    
+
     if (genDeltas) {
       gradclamp8by4_encode_pred_error(cxt->pixels,
                                       deltasPtr,
@@ -455,11 +518,11 @@ void dump_iter_n(int width, int height, int hasAlpha, uint32_t *inPixels, const 
   char buffer[100];
   snprintf(buffer, sizeof(buffer), "iter%d.png", istep);
   *iterStepPtr += 1;
-  
+    
   write_png_file((char*)&buffer[0], &dumpCxt);
-  
+    
   printf("wrote iter step %d as \"%s\"\n", istep, buffer);
-  
+    
   PngContext_dealloc(&dumpCxt);
   
   return;
@@ -492,7 +555,7 @@ void dump_rgb(int width, int height, int hasAlpha, uint32_t * pixelsPtr, char *f
 }
 
 static
-void dump_grayscale(int width, int height, uint8_t * offsetsPtr) {
+void dump_grayscale(int width, int height, uint8_t * offsetsPtr, char * filename) {
   const int inputImageNumPixels = width * height;
   
   PngContext dumpCxt;
@@ -512,7 +575,7 @@ void dump_grayscale(int width, int height, uint8_t * offsetsPtr) {
   }
   
   char buffer[100];
-  snprintf(buffer, sizeof(buffer), "iter_grayscale.png");
+  snprintf(buffer, sizeof(buffer), "%s", (char*)filename);
   
   write_png_file((char*)&buffer[0], &dumpCxt);
   
@@ -605,7 +668,7 @@ int main(int argc, char **argv) {
     printf("wrote input copy to %s\n", inoutFilename);
     PngContext_dealloc(&copyCxt);
   }
-  
+
   printf("processing %d pixels from image of dimensions %d x %d\n", cxt.width*cxt.height, cxt.width, cxt.height);
   
   process_file(&cxt);

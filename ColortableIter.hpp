@@ -4069,6 +4069,89 @@ void CTI_IterateRGB(
   return;
 }
 
+// Entry point for iteration over grayscale values
+// where the gradient is estimated by a simple
+// delta calculation.
+
+static inline
+void CTI_IterateGray(
+                    const uint8_t * const bytesPtr,
+                    const int width,
+                    const int height,
+                    vector<uint32_t> & iterOrder,
+                    uint32_t * const deltasPtr)
+{
+  const bool debug = false;
+  
+  if (debug) {
+    printf("CTI_IterateGray\n");
+  }
+  
+  auto simpleLookupPixelsL = [bytesPtr] (int offset)->uint8_t {
+    return bytesPtr[offset];
+  };
+  
+  auto simpleDetlaPixelsL = [bytesPtr] (int fromOffset, int toOffset)->int {
+    int delta = CTIGrayDelta(bytesPtr, fromOffset, toOffset);
+    return delta;
+  };
+  
+  CTI_Struct ctiStruct;
+  
+  // The core data structure is a prio stack with statically defined linked list nodes
+  // so that O(1) access to the element with the smallest prio value is
+  // always available.
+  
+  int waitListN;
+  
+  waitListN = (255+1);
+  
+  CTI_Setup(ctiStruct,
+            simpleLookupPixelsL,
+            simpleDetlaPixelsL,
+            waitListN,
+            width,
+            height,
+            iterOrder,
+            deltasPtr);
+  
+  // Iterate over all remaining pixels based on min cost huristic
+  
+  bool hasMoreDeltas;
+  
+  while (1) {
+    hasMoreDeltas = CTI_IterateStep(ctiStruct,
+                                    simpleLookupPixelsL,
+                                    simpleDetlaPixelsL,
+                                    iterOrder,
+                                    deltasPtr);
+    
+    if (!hasMoreDeltas) {
+      break;
+    }
+  }
+  
+#if defined(DEBUG)
+  ctiStruct.printResults();
+#endif // DEBUG
+  
+  if (debug) {
+    int N = (int) iterOrder.size();
+    
+    printf("N = %d\n", N);
+    
+    for ( int i = 0; i < N; i++ ) {
+      printf("iter %d\n", iterOrder[i]);
+    }
+  }
+  
+#if defined(DEBUG)
+  assert(ctiStruct.allPixelsProcessed() == true);
+#endif // DEBUG
+  
+  return;
+}
+
 // Util function that will set processed flags for a matrix as defined
 // by the input boolean flags. This util method assumes that none
 // of the original 4 pixels in the upper left corner will be touched

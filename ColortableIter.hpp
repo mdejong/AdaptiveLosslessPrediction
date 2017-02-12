@@ -4104,7 +4104,7 @@ void CTI_IterateGray(
   
   int waitListN;
   
-  waitListN = (255+1);
+  waitListN = (512+1);
   
   CTI_Setup(ctiStruct,
             simpleLookupPixelsL,

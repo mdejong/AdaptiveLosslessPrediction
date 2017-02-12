@@ -261,7 +261,7 @@ unsigned_byte_to_signed(unsigned int bVal) {
   }
 }
 
-// Convert from an unsigned by value (0, 255) to a signed int value in range (-128, 127)
+// Convert from signed value in the range (-128, 127) to (0, 256)
 
 static inline
 unsigned int
@@ -270,6 +270,18 @@ signed_byte_to_unsigned(int sVal) {
     return 256 - abs(sVal);
   } else {
     return ((unsigned int)sVal) & 0xFF;
+  }
+}
+
+// Convert from signed value like (-128, 127) to (0, 256) (assuming maxVal = 256)
+
+static inline
+unsigned int
+signed_to_unsigned(int sVal, const int maxVal) {
+  if (sVal < 0) {
+    return maxVal - abs(sVal);
+  } else {
+    return ((unsigned int)sVal) & (maxVal-1);
   }
 }
 
@@ -622,17 +634,31 @@ int CTIGrayDelta(const uint8_t * const grayPtr, int o1, int o2) {
     printf("image offset %2d -> 0x%08X\n", o2, p2);
   }
   
-  if (debug) {
-    printf("predict(%2d,%2d) : 0x%08X -> 0x%08X\n", o1, o2, p1, p2);
-  }
+//  if (debug) {
+//    printf("predict(%2d,%2d) : 0x%08X -> 0x%08X\n", o1, o2, p1, p2);
+//  }
 
-  int delta = abs(p2 - p1);
+  //int delta = abs(p2 - p1);
+  int delta = (p2 - p1);
   
   if (debug) {
     printf("delta = %d : %d - %d\n", delta, p2, p1);
   }
   
-  return delta;
+  // Convert signed values (-255, 255) to unsigned range (0, 512)
+  // where (0 -> 0, 1 -> 2, -1 -> 2 and so on.
+  // Note that convertSignedZeroDeltaToUnsignedNbits checking is not needed
+  // since -256 is not a valid value.
+  
+  //uint32_t unDelta = convertSignedZeroDeltaToUnsignedNbits(delta, 9);
+  
+  uint32_t unDelta = convertSignedZeroDeltaToUnsigned(delta);
+  
+  if (debug) {
+    printf("unsigned delta = %d\n", unDelta);
+  }
+  
+  return unDelta;
 }
 
 // Table prediciton with 2 values along same axis

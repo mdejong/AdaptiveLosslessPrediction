@@ -1180,5 +1180,86 @@ void CTI_IteratePixelsInTable(
   return;
 }
 
+// Calculate delta between grayscale values such that:
+//  0 -> 0
+//  1 -> 1
+// -1 -> 2
+//  2 -> 3
+//  ...
+//  255 - 0 = 255  -> 511
+//  0 - 255 = -255 -> 512
+//
+// Max diff = (0 - 255) = -255 -> 512
+
+- (void) testGrayDelta1 {
+  
+  uint8_t grayBytesTablePtr[] = {
+    0,
+    1,
+    2,
+    0xFF
+  };
+  
+  uint8_t tableOffsets[] = {
+    0, 1, 0,
+    2, 3, 0,
+    0, 0, 0
+  };
+  
+  int width = 3;
+  int height = 3;
+  
+  int N = width * height;
+  
+  uint8_t *grayPixelsPtr = new uint8_t[N];
+  
+  for ( int i = 0; i < N; i++ ) {
+    uint8_t colortableOffset = tableOffsets[i];
+    uint8_t pixel = grayBytesTablePtr[colortableOffset];
+    grayPixelsPtr[i] = pixel;
+  }
+  
+  int delta;
+
+  // Delta (0 - 0) = 0
+  
+  delta = CTIGrayDelta(grayPixelsPtr, 0, 2);
+  
+  XCTAssert(delta == 0);
+  
+  // Delta (1 - 0) = 1 -> 1 (unsigned)
+  
+  delta = CTIGrayDelta(grayPixelsPtr, 0, 1);
+
+  XCTAssert(delta == 1);
+
+  // Delta (0 - 1) = -1 -> 2 (unsigned)
+  
+  delta = CTIGrayDelta(grayPixelsPtr, 1, 0);
+  
+  XCTAssert(delta == 2);
+  
+  // Delta (2 - 0) = 2 -> 3 (unsigned)
+  
+  delta = CTIGrayDelta(grayPixelsPtr, 0, 3);
+  
+  XCTAssert(delta == 3);
+
+  // Delta (255 - 0) = 255 -> 509 (unsigned)
+  
+  delta = CTIGrayDelta(grayPixelsPtr, 0, 4);
+  
+  XCTAssert(delta == 509);
+
+  // Delta (0 - 255) = -255 -> 510 (unsigned)
+  
+  delta = CTIGrayDelta(grayPixelsPtr, 4, 0);
+  
+  XCTAssert(delta == 510);
+  
+  return;
+}
+
+
 @end
 

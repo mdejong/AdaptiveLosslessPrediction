@@ -17,7 +17,7 @@
 #include <time.h>
 
 #include "ColortableIter.hpp"
-
+ 
 using namespace std;
 
 static
@@ -40,6 +40,288 @@ void dump_grayscale(int width, int height, uint8_t * offsetsPtr, char * filename
 static
 void dump_colortable(int hasAlpha, uint32_t * colortablePtr, int numColors);
 
+// Post processing of iter step output array where the iteration order through the image
+// is processed and an image that shows how the process progresses through the image is
+// emitted step by step.
+
+// Post process the output of a RGB prediction based on an input image and the
+// iteration order.
+
+void
+post_process_iter(PngContext *cxt,
+                 const vector<uint32_t> & iterOrder
+                 )
+{
+  int inputImageNumPixels = cxt->width * cxt->height;
+  
+  // Dump iteration step images
+  
+  if ((0)) {
+    int iterStepPtr = 0;
+    
+    for ( int i = 0 ; i < inputImageNumPixels; i++ ) {
+      dump_iter_n(cxt->width, cxt->height, cxt->hasAlpha, cxt->pixels, iterOrder, &iterStepPtr);
+    }
+  }
+  
+  // Dump iteration step images
+  
+  if ((1)) {
+    int iterStepPtr = 0;
+    
+    for ( int i = 0 ; i < inputImageNumPixels; i++ ) {
+      if ((i % 1000) == 0) {
+        dump_iter_n(cxt->width, cxt->height, cxt->hasAlpha, cxt->pixels, iterOrder, &iterStepPtr);
+      } else {
+        iterStepPtr += 1;
+      }
+    }
+  }
+  
+  // Huge 4K steps
+  
+  if ((0)) {
+    int iterStepPtr = 0;
+    
+    for ( int i = 0 ; i < inputImageNumPixels; i++ ) {
+      if ((i % 25000) == 0) {
+        dump_iter_n(cxt->width, cxt->height, cxt->hasAlpha, cxt->pixels, iterOrder, &iterStepPtr);
+      } else {
+        iterStepPtr += 1;
+      }
+    }
+  }
+  
+  // Turn original image into an iteration ordered 1D representation
+  // that orderes pixels in terms of gradient height.
+  
+  if ((1)) {
+    uint32_t *iterOrderedPixels = new uint32_t[inputImageNumPixels]();
+    
+    int i = 0;
+    
+    for ( uint32_t offset : iterOrder ) {
+      // Lookup pixel at offset
+      uint32_t pixel = cxt->pixels[offset];
+      iterOrderedPixels[i] = pixel;
+      i += 1;
+    }
+    
+    dump_rgb(cxt->width, cxt->height, cxt->hasAlpha, iterOrderedPixels, (char*)"iter_order_pixels.png");
+    
+    delete [] iterOrderedPixels;
+  }
+  
+  return;
+}
+
+// Post process the output of a RGB prediction based on an input image and the
+// iteration order.
+
+void
+post_process_rgb(PngContext *cxt,
+                 int genDeltas,
+                 uint32_t *deltasPtr,
+                 const vector<uint32_t> & iterOrder
+)
+{
+  int inputImageNumPixels = cxt->width * cxt->height;
+  
+  if (genDeltas) {
+    dump_rgb(cxt->width, cxt->height, cxt->hasAlpha, deltasPtr, (char*)"iter_deltas.png");
+  }
+  
+  // Convert the RGB deltas centered around zero to abs()
+  // applied to each component so that the output result
+  // is a grayscale positive or negative delta.
+  
+  if (genDeltas) {
+    uint32_t *absDeltasPtr = new uint32_t[inputImageNumPixels]();
+    
+    for (int i = 0; i < inputImageNumPixels; i++)
+    {
+      if (i == 0 || i == 1 || (i == cxt->width) || (i == cxt->width+1)) {
+        // Skip abs and emit zero in the upper left corner pixels case
+        absDeltasPtr[i] = 0;
+      } else {
+        uint32_t pixel = deltasPtr[i];
+        uint32_t absPixel = abs_of_each_component(pixel);
+        absDeltasPtr[i] = absPixel;
+      }
+    }
+    
+    dump_rgb(cxt->width, cxt->height, cxt->hasAlpha, absDeltasPtr, (char*)"iter_abs_deltas.png");
+    
+    delete [] absDeltasPtr;
+  }
+  
+  if (genDeltas) {
+    // Out = Pred = orig + err
+    
+    // Write over the first 4 pixels in upper left to simplify
+    // delta calculations
+    
+    uint32_t *predPixelsPtr = new uint32_t[inputImageNumPixels]();
+    
+    for (int i = 0; i < inputImageNumPixels; i++)
+    {
+      if (i == 0 || i == 1 || (i == cxt->width) || (i == cxt->width+1)) {
+        // Skip abs and emit zero in the upper left corner pixels case
+        predPixelsPtr[i] = deltasPtr[i];
+      } else {
+        uint32_t origPixel = cxt->pixels[i];
+        uint32_t deltaPixel = deltasPtr[i];
+        uint32_t predPixel = pixel_component_sum(origPixel, deltaPixel, 3);
+        predPixelsPtr[i] = predPixel;
+      }
+    }
+    
+    // Calculate abs and mean err
+    
+    if ((genDeltas)) {
+      double cMAE = calc_combined_mean_abs_error(inputImageNumPixels, cxt->pixels, predPixelsPtr);
+      
+      fprintf(stdout, "combined MAE %0.8f\n", cMAE);
+      
+      double cMSE = calc_combined_mean_sqr_error(inputImageNumPixels, cxt->pixels, predPixelsPtr);
+      
+      fprintf(stdout, "combined MSE %0.8f\n", cMSE);
+    }
+    
+    delete [] predPixelsPtr;
+  }
+  
+  // Based on the iter order and in delta gen mode, format the
+  // prediction error as iter order data, so that the error
+  // values appear together in the output data stream.
+  
+  if (deltasPtr) {
+    uint32_t *iterOrderedPixels = new uint32_t[inputImageNumPixels]();
+    
+    int i = 0;
+    
+    for ( uint32_t offset : iterOrder ) {
+      uint32_t predErr = deltasPtr[offset];
+      iterOrderedPixels[i] = predErr;
+      i += 1;
+    }
+    
+    dump_rgb(cxt->width, cxt->height, cxt->hasAlpha, iterOrderedPixels, (char*)"iter_order_deltas.png");
+    
+    delete [] iterOrderedPixels;
+  }
+  
+  if (deltasPtr) {
+    uint32_t *iterOrderedPixels = new uint32_t[inputImageNumPixels]();
+    
+    int i = 0;
+    
+    for ( uint32_t offset : iterOrder ) {
+      uint32_t predErr = deltasPtr[offset];
+      uint32_t absPredErr = abs_of_each_component(predErr);
+      iterOrderedPixels[i] = absPredErr;
+      i += 1;
+    }
+    
+    dump_rgb(cxt->width, cxt->height, cxt->hasAlpha, iterOrderedPixels, (char*)"iter_order_abs_deltas.png");
+    
+    delete [] iterOrderedPixels;
+  }
+  
+  delete [] deltasPtr;
+
+  // Emit step images based on iteration ordering
+  
+  post_process_iter(cxt, iterOrder);
+  
+  // Calculate and emit deltas from gradclamp process
+  
+  if ((1))
+  {
+    uint32_t * deltasPtr = nullptr;
+    
+    const bool genDeltas = true;
+    
+    if (genDeltas) {
+      deltasPtr = new uint32_t[inputImageNumPixels]();
+    }
+    
+    if (genDeltas) {
+      gradclamp8by4_encode_pred_error(cxt->pixels,
+                                      deltasPtr,
+                                      0,
+                                      cxt->width * cxt->height,
+                                      cxt->width);
+    }
+    
+    if (genDeltas) {
+      dump_rgb(cxt->width, cxt->height, cxt->hasAlpha, deltasPtr, (char*)"gradclamp_deltas.png");
+    }
+    
+    // Convert the RGB deltas centered around zero to abs()
+    // applied to each component so that the output result
+    // is a grayscale positive or negative delta.
+    
+    if (genDeltas) {
+      uint32_t *absDeltasPtr = new uint32_t[inputImageNumPixels]();
+      
+      for (int i = 0; i < inputImageNumPixels; i++)
+      {
+        if (i == 0 || i == 1 || (i == cxt->width) || (i == cxt->width+1)) {
+          // Skip abs and emit zero in the upper left corner pixels case
+          absDeltasPtr[i] = 0;
+        } else {
+          uint32_t pixel = deltasPtr[i];
+          uint32_t absPixel = abs_of_each_component(pixel);
+          absDeltasPtr[i] = absPixel;
+        }
+      }
+      
+      dump_rgb(cxt->width, cxt->height, cxt->hasAlpha, absDeltasPtr, (char*)"gradclamp_abs_deltas.png");
+      
+      delete [] absDeltasPtr;
+    }
+    
+    if (genDeltas) {
+      // Out = Pred = orig + err
+      
+      // Write over the first 4 pixels in upper left to simplify
+      // delta calculations
+      
+      uint32_t *predPixelsPtr = new uint32_t[inputImageNumPixels]();
+      
+      for (int i = 0; i < inputImageNumPixels; i++)
+      {
+        if (i == 0 || i == 1 || (i == cxt->width) || (i == cxt->width+1)) {
+          // Skip abs and emit zero in the upper left corner pixels case
+          predPixelsPtr[i] = deltasPtr[i];
+        } else {
+          uint32_t origPixel = cxt->pixels[i];
+          uint32_t deltaPixel = deltasPtr[i];
+          uint32_t predPixel = pixel_component_sum(origPixel, deltaPixel, 3);
+          predPixelsPtr[i] = predPixel;
+        }
+      }
+      
+      // Calculate abs and mean err
+      
+      if ((genDeltas)) {
+        double cMAE = calc_combined_mean_abs_error(inputImageNumPixels, cxt->pixels, predPixelsPtr);
+        
+        fprintf(stdout, "combined MAE %0.8f\n", cMAE);
+        
+        double cMSE = calc_combined_mean_sqr_error(inputImageNumPixels, cxt->pixels, predPixelsPtr);
+        
+        fprintf(stdout, "combined MSE %0.8f\n", cMSE);
+      }
+      
+      delete [] predPixelsPtr;
+    }
+  }
+  
+  return;
+}
+
 void
 __attribute__ ((noinline))
 process_file(PngContext *cxt)
@@ -49,20 +331,18 @@ process_file(PngContext *cxt)
   printf("read  %d pixels from input image\n", inputImageNumPixels);
   
   // Determine if this image has been processed into a LTEQ 256 colortable
-  
+
   bool enable256 = false;
   
   unordered_map<uint32_t, uint32_t> histogram;
   
   if (enable256) {
-  
-  for (int i = 0; i < inputImageNumPixels; i++) {
-    uint32_t pixel = cxt->pixels[i];
-    histogram[pixel] += 1;
+    for (int i = 0; i < inputImageNumPixels; i++) {
+      uint32_t pixel = cxt->pixels[i];
+      histogram[pixel] += 1;
+    }
   }
   
-  }
-    
   int numUniquePixels = (int) histogram.size();
   
   printf("scanned  %d unique pixels in input image\n", numUniquePixels);
@@ -74,14 +354,6 @@ process_file(PngContext *cxt)
   
   if (checkGrayscale) {
     isGrayscale = true;
-
-    // Note that reading (cxt->color_type == PNG_COLOR_TYPE_GRAY) is not
-    // processing byte input properly. Need to convert to RGB that contains grayscale.
-    
-    // This check does not work for grayscale PNG input
-//    if (cxt->color_type == PNG_COLOR_TYPE_GRAY) {
-//      isGrayscale = true;
-//    }
 
     for (int i = 0; i < inputImageNumPixels; i++) {
       uint32_t pixel = cxt->pixels[i];
@@ -194,6 +466,8 @@ process_file(PngContext *cxt)
     elapsed = stop_timer(startT);
     
     delete [] grayscaleBytes;
+    
+    post_process_iter(cxt, iterOrder);
   } else if (enable256 && numUniquePixels <= 256) {
     // 1 component colortable index processing
     
@@ -211,6 +485,12 @@ process_file(PngContext *cxt)
     }
     
     elapsed = stop_timer(startT);
+    
+    printf("elapsed %.2f\n", elapsed);
+    
+    cout << "done : processed " << iterOrder.size() << endl;
+    
+    post_process_iter(cxt, iterOrder);
   } else {
     // 3 component RGB processing
     
@@ -236,257 +516,14 @@ process_file(PngContext *cxt)
     
     elapsed = stop_timer(startT);
     
-    if (genDeltas) {
-      dump_rgb(cxt->width, cxt->height, cxt->hasAlpha, deltasPtr, (char*)"iter_deltas.png");
-    }
+    printf("elapsed %.2f\n", elapsed);
     
-    // Convert the RGB deltas centered around zero to abs()
-    // applied to each component so that the output result
-    // is a grayscale positive or negative delta.
+    cout << "done : processed " << iterOrder.size() << endl;
     
-    if (genDeltas) {
-      uint32_t *absDeltasPtr = new uint32_t[inputImageNumPixels]();
-      
-      for (int i = 0; i < inputImageNumPixels; i++)
-      {
-        if (i == 0 || i == 1 || (i == cxt->width) || (i == cxt->width+1)) {
-          // Skip abs and emit zero in the upper left corner pixels case
-          absDeltasPtr[i] = 0;
-        } else {
-          uint32_t pixel = deltasPtr[i];
-          uint32_t absPixel = abs_of_each_component(pixel);
-          absDeltasPtr[i] = absPixel;
-        }
-      }
-      
-      dump_rgb(cxt->width, cxt->height, cxt->hasAlpha, absDeltasPtr, (char*)"iter_abs_deltas.png");
-      
-      delete [] absDeltasPtr;
-    }
-    
-    if (genDeltas) {
-    // Out = Pred = orig + err
-    
-    // Write over the first 4 pixels in upper left to simplify
-    // delta calculations
-
-    uint32_t *predPixelsPtr = new uint32_t[inputImageNumPixels]();
-    
-    for (int i = 0; i < inputImageNumPixels; i++)
-    {
-      if (i == 0 || i == 1 || (i == cxt->width) || (i == cxt->width+1)) {
-        // Skip abs and emit zero in the upper left corner pixels case
-        predPixelsPtr[i] = deltasPtr[i];
-      } else {
-        uint32_t origPixel = cxt->pixels[i];
-        uint32_t deltaPixel = deltasPtr[i];
-        uint32_t predPixel = pixel_component_sum(origPixel, deltaPixel, 3);
-        predPixelsPtr[i] = predPixel;
-      }
-    }
-    
-    // Calculate abs and mean err
-    
-    if ((genDeltas)) {
-      double cMAE = calc_combined_mean_abs_error(inputImageNumPixels, cxt->pixels, predPixelsPtr);
-      
-      fprintf(stdout, "combined MAE %0.8f\n", cMAE);
-      
-      double cMSE = calc_combined_mean_sqr_error(inputImageNumPixels, cxt->pixels, predPixelsPtr);
-      
-      fprintf(stdout, "combined MSE %0.8f\n", cMSE);
-    }
-
-    delete [] predPixelsPtr;
-    }
-  }
-  
-  printf("elapsed %.2f\n", elapsed);
-  
-  cout << "done : processed " << iterOrder.size() << endl;
-  
-  // Based on the iter order and in delta gen mode, format the
-  // prediction error as iter order data, so that the error
-  // values appear together in the output data stream.
-  
-  if (deltasPtr) {
-    uint32_t *iterOrderedPixels = new uint32_t[inputImageNumPixels]();
-    
-    int i = 0;
-    
-    for ( uint32_t offset : iterOrder ) {
-      uint32_t predErr = deltasPtr[offset];
-      iterOrderedPixels[i] = predErr;
-      i += 1;
-    }
-    
-    dump_rgb(cxt->width, cxt->height, cxt->hasAlpha, iterOrderedPixels, (char*)"iter_order_deltas.png");
-    
-    delete [] iterOrderedPixels;
-  }
-
-  if (deltasPtr) {
-    uint32_t *iterOrderedPixels = new uint32_t[inputImageNumPixels]();
-    
-    int i = 0;
-    
-    for ( uint32_t offset : iterOrder ) {
-      uint32_t predErr = deltasPtr[offset];
-      uint32_t absPredErr = abs_of_each_component(predErr);
-      iterOrderedPixels[i] = absPredErr;
-      i += 1;
-    }
-    
-    dump_rgb(cxt->width, cxt->height, cxt->hasAlpha, iterOrderedPixels, (char*)"iter_order_abs_deltas.png");
-    
-    delete [] iterOrderedPixels;
-  }
-  
-  delete [] colortableOffsets;
-  delete [] colortablePixels;
-  delete [] deltasPtr;
-  
-  // Dump iteration step images
-  
-  if ((0)) {
-    int iterStepPtr = 0;
-    
-    for ( int i = 0 ; i < inputImageNumPixels; i++ ) {
-      dump_iter_n(cxt->width, cxt->height, cxt->hasAlpha, cxt->pixels, iterOrder, &iterStepPtr);
-    }
-  }
-  
-  // Dump iteration step images
-  
-  if ((1)) {
-    int iterStepPtr = 0;
-    
-    for ( int i = 0 ; i < inputImageNumPixels; i++ ) {
-      if ((i % 1000) == 0) {
-        dump_iter_n(cxt->width, cxt->height, cxt->hasAlpha, cxt->pixels, iterOrder, &iterStepPtr);
-      } else {
-        iterStepPtr += 1;
-      }
-    }
-  }
-
-  // Huge 4K steps
-  
-  if ((0)) {
-    int iterStepPtr = 0;
-    
-    for ( int i = 0 ; i < inputImageNumPixels; i++ ) {
-      if ((i % 25000) == 0) {
-        dump_iter_n(cxt->width, cxt->height, cxt->hasAlpha, cxt->pixels, iterOrder, &iterStepPtr);
-      } else {
-        iterStepPtr += 1;
-      }
-    }
-  }
-  
-  // Turn original image into an iteration ordered 1D representation
-  // that orderes pixels in terms of gradient height.
-  
-  if ((1)) {
-    uint32_t *iterOrderedPixels = new uint32_t[inputImageNumPixels]();
-    
-    int i = 0;
-    
-    for ( uint32_t offset : iterOrder ) {
-      // Lookup pixel at offset
-      uint32_t pixel = cxt->pixels[offset];
-      iterOrderedPixels[i] = pixel;
-      i += 1;
-    }
-    
-    dump_rgb(cxt->width, cxt->height, cxt->hasAlpha, iterOrderedPixels, (char*)"iter_order_pixels.png");
-    
-    delete [] iterOrderedPixels;
-  }
-  
-  // Calculate and emit deltas from gradclamp process
-  
-  if ((1))
-  {
-    uint32_t * deltasPtr = nullptr;
-    
-    const bool genDeltas = true;
-    
-    if (genDeltas) {
-      deltasPtr = new uint32_t[inputImageNumPixels]();
-    }
-
-    if (genDeltas) {
-      gradclamp8by4_encode_pred_error(cxt->pixels,
-                                      deltasPtr,
-                                      0,
-                                      cxt->width * cxt->height,
-                                      cxt->width);
-    }
-    
-    if (genDeltas) {
-      dump_rgb(cxt->width, cxt->height, cxt->hasAlpha, deltasPtr, (char*)"gradclamp_deltas.png");
-    }
-    
-    // Convert the RGB deltas centered around zero to abs()
-    // applied to each component so that the output result
-    // is a grayscale positive or negative delta.
-    
-    if (genDeltas) {
-      uint32_t *absDeltasPtr = new uint32_t[inputImageNumPixels]();
-      
-      for (int i = 0; i < inputImageNumPixels; i++)
-      {
-        if (i == 0 || i == 1 || (i == cxt->width) || (i == cxt->width+1)) {
-          // Skip abs and emit zero in the upper left corner pixels case
-          absDeltasPtr[i] = 0;
-        } else {
-          uint32_t pixel = deltasPtr[i];
-          uint32_t absPixel = abs_of_each_component(pixel);
-          absDeltasPtr[i] = absPixel;
-        }
-      }
-      
-      dump_rgb(cxt->width, cxt->height, cxt->hasAlpha, absDeltasPtr, (char*)"gradclamp_abs_deltas.png");
-      
-      delete [] absDeltasPtr;
-    }
-    
-    if (genDeltas) {
-      // Out = Pred = orig + err
-      
-      // Write over the first 4 pixels in upper left to simplify
-      // delta calculations
-      
-      uint32_t *predPixelsPtr = new uint32_t[inputImageNumPixels]();
-      
-      for (int i = 0; i < inputImageNumPixels; i++)
-      {
-        if (i == 0 || i == 1 || (i == cxt->width) || (i == cxt->width+1)) {
-          // Skip abs and emit zero in the upper left corner pixels case
-          predPixelsPtr[i] = deltasPtr[i];
-        } else {
-          uint32_t origPixel = cxt->pixels[i];
-          uint32_t deltaPixel = deltasPtr[i];
-          uint32_t predPixel = pixel_component_sum(origPixel, deltaPixel, 3);
-          predPixelsPtr[i] = predPixel;
-        }
-      }
-      
-      // Calculate abs and mean err
-      
-      if ((genDeltas)) {
-        double cMAE = calc_combined_mean_abs_error(inputImageNumPixels, cxt->pixels, predPixelsPtr);
-        
-        fprintf(stdout, "combined MAE %0.8f\n", cMAE);
-        
-        double cMSE = calc_combined_mean_sqr_error(inputImageNumPixels, cxt->pixels, predPixelsPtr);
-        
-        fprintf(stdout, "combined MSE %0.8f\n", cMSE);
-      }
-      
-      delete [] predPixelsPtr;
-    }
+    post_process_rgb(cxt,
+                     genDeltas,
+                     deltasPtr,
+                     iterOrder);
   }
   
   return;

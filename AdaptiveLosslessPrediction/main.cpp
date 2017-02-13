@@ -449,6 +449,12 @@ process_file(PngContext *cxt)
       grayscaleBytes[i] = B;
     }
     
+    const bool genDeltas = true;
+    
+    if (genDeltas) {
+      deltasPtr = new uint32_t[inputImageNumPixels]();
+    }
+    
     // Dump indexes output
     
     dump_grayscale(cxt->width, cxt->height, grayscaleBytes, (char*)"in_grayscale_bytes.png");
@@ -460,14 +466,36 @@ process_file(PngContext *cxt)
       CTI_IterateGray(grayscaleBytes,
                       cxt->width, cxt->height,
                       iterOrder,
-                      nullptr);
+                      deltasPtr);
     }
     
     elapsed = stop_timer(startT);
     
     delete [] grayscaleBytes;
     
-    post_process_iter(cxt, iterOrder);
+//    post_process_iter(cxt, iterOrder);
+    
+    // Update the deltas so that B only deltas like 0x00000001
+    // will be represented as full greyscale pixels 0x00010101
+    
+    for (int i = 0; i < inputImageNumPixels; i++) {
+      uint32_t pixel = deltasPtr[i];
+      uint32_t B = pixel & 0xFF;
+      
+      //printf("pixels[%5d] = 0x%08X\n", i, pixel);
+
+      pixel = (B << 16) | (B << 8) | B;
+      
+      //printf("pixels[%5d] = 0x%08X\n", i, pixel);
+      
+      deltasPtr[i] = pixel;
+    }
+    
+    post_process_rgb(cxt,
+                     genDeltas,
+                     deltasPtr,
+                     iterOrder);
+    
   } else if (enable256 && numUniquePixels <= 256) {
     // 1 component colortable index processing
     
